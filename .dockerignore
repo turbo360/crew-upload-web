@@ -1,0 +1,44 @@
+# Dependencies - CRITICAL: must not copy macOS node_modules to Linux container
+node_modules/
+**/node_modules/
+
+# Git
+.git
+.gitignore
+
+# Docs (except INSTALL which is useful)
+README.md
+CHANGELOG.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Local data
+uploads/
+data/
+dist/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+._*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test/coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.tgz
+*.tar.gz
