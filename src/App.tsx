@@ -1,8 +1,7 @@
 import { useEffect } from 'react'
 import { useAuthStore } from './stores/authStore'
 import { useSessionStore } from './stores/sessionStore'
-import LoginPage from './pages/LoginPage'
-import SessionSetupPage from './pages/SessionSetupPage'
+import StartPage from './pages/StartPage'
 import UploadPage from './pages/UploadPage'
 import Layout from './components/Layout'
 
@@ -24,18 +23,10 @@ function App() {
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !session) {
     return (
       <Layout>
-        <LoginPage />
-      </Layout>
-    )
-  }
-
-  if (!session) {
-    return (
-      <Layout>
-        <SessionSetupPage />
+        <StartPage />
       </Layout>
     )
   }

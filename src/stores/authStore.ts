@@ -4,10 +4,12 @@ import { api } from '../utils/api'
 
 interface AuthState {
   token: string | null
+  userName: string | null
+  userEmail: string | null
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
-  login: (password: string) => Promise<boolean>
+  login: (name: string, email: string) => Promise<boolean>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
   clearError: () => void
@@ -17,19 +19,23 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       token: null,
+      userName: null,
+      userEmail: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
 
-      login: async (password: string) => {
+      login: async (name: string, email: string) => {
         set({ isLoading: true, error: null })
 
         try {
-          const response = await api.post('/api/auth/login', { password })
+          const response = await api.post('/api/auth/login', { name, email })
 
           if (response.success && response.token) {
             set({
               token: response.token,
+              userName: name.trim(),
+              userEmail: email.trim().toLowerCase(),
               isAuthenticated: true,
               isLoading: false
             })
@@ -65,6 +71,8 @@ export const useAuthStore = create<AuthState>()(
 
         set({
           token: null,
+          userName: null,
+          userEmail: null,
           isAuthenticated: false,
           error: null
         })
@@ -88,6 +96,8 @@ export const useAuthStore = create<AuthState>()(
           } else {
             set({
               token: null,
+              userName: null,
+              userEmail: null,
               isAuthenticated: false,
               isLoading: false
             })
@@ -95,6 +105,8 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           set({
             token: null,
+            userName: null,
+            userEmail: null,
             isAuthenticated: false,
             isLoading: false
           })
@@ -105,7 +117,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'crew-upload-auth',
-      partialize: (state) => ({ token: state.token })
+      partialize: (state) => ({
+        token: state.token,
+        userName: state.userName,
+        userEmail: state.userEmail
+      })
     }
   )
 )

@@ -2,7 +2,6 @@ import crypto from 'crypto';
 
 export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
-  uploadPassword: process.env.UPLOAD_PASSWORD || 'tcrew26',
   postmarkApiKey: process.env.POSTMARK_API_KEY || '',
   notificationEmail: process.env.NOTIFICATION_EMAIL || 'hello@turbo360.com.au',
   uploadDir: process.env.UPLOAD_DIR || './uploads',
