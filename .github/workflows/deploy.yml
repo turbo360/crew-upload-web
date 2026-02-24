@@ -28,7 +28,7 @@ jobs:
 
           # Create archive (excluding unnecessary files)
           echo "=== Creating archive ==="
-          tar -czf deploy.tar.gz \
+          tar -czf /tmp/deploy.tar.gz \
             --exclude='node_modules' \
             --exclude='.git' \
             --exclude='data' \
@@ -37,7 +37,7 @@ jobs:
 
           # Upload to writable parent directory on NAS
           echo "=== Uploading to NAS ==="
-          scp $SSH_OPTS deploy.tar.gz "$REMOTE:/volume1/docker/deploy.tar.gz"
+          scp $SSH_OPTS /tmp/deploy.tar.gz "$REMOTE:/volume1/docker/deploy.tar.gz"
 
           # Extract, swap, rebuild
           echo "=== Extracting and rebuilding ==="
