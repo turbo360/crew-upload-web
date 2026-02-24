@@ -92,6 +92,14 @@ router.post('/create', async (req, res) => {
     // Create the folder structure
     await fs.mkdir(folderPath, { recursive: true });
 
+    // Fix directory ownership for NAS sync
+    try {
+      const { execSync } = await import('child_process');
+      execSync(`chown -R ${config.fileOwner}:${config.fileGroup} "${folderPath}"`);
+    } catch (chownErr) {
+      logger.warn('Failed to set directory ownership', { folderPath, error: chownErr.message });
+    }
+
     // Create session in database
     const session = sessionModel.create({
       id: sessionId,

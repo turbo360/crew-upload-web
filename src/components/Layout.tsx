@@ -2,6 +2,7 @@ import { ReactNode } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUploadStore } from '../stores/uploadStore'
+import SessionBar from './SessionBar'
 
 interface LayoutProps {
   children: ReactNode
@@ -9,21 +10,42 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const { isAuthenticated, logout } = useAuthStore()
-  const { session, clearSession } = useSessionStore()
+  const { session, batches, clearSession } = useSessionStore()
   const { clearAll, files } = useUploadStore()
 
   const handleLogout = async () => {
+    const hasActiveUploads = files.some(f => f.status === 'uploading')
+    const totalFiles = batches.reduce((sum, b) => sum + b.fileCount, 0)
+
+    if (hasActiveUploads) {
+      if (!confirm('You have uploads in progress. Are you sure you want to logout? Active uploads will be cancelled.')) {
+        return
+      }
+    } else if (totalFiles > 0) {
+      if (!confirm(`Logout? You've uploaded ${totalFiles} files across ${batches.length} batch${batches.length !== 1 ? 'es' : ''} today. Make sure you've ended your session first if you're done.`)) {
+        return
+      }
+    }
+
     clearAll()
     clearSession()
     await logout()
   }
 
   const handleNewSession = () => {
-    if (files.some(f => f.status === 'uploading')) {
-      if (!confirm('You have uploads in progress. Are you sure you want to start a new session?')) {
+    const hasActiveUploads = files.some(f => f.status === 'uploading')
+    const totalFiles = batches.reduce((sum, b) => sum + b.fileCount, 0)
+
+    if (hasActiveUploads) {
+      if (!confirm('You have uploads in progress. Are you sure you want to start a new session? Active uploads will be cancelled.')) {
+        return
+      }
+    } else if (totalFiles > 0) {
+      if (!confirm(`Start a new session? Current session has ${batches.length} batch${batches.length !== 1 ? 'es' : ''} with ${totalFiles} files. The team will NOT be notified unless you end the session first.`)) {
         return
       }
     }
+
     clearAll()
     clearSession()
   }
@@ -61,9 +83,8 @@ export default function Layout({ children }: LayoutProps) {
               {isAuthenticated && (
                 <div className="flex items-center gap-4">
                   {session && (
-                    <div className="hidden sm:block text-right">
-                      <p className="text-sm font-medium text-white">{session.projectName}</p>
-                      <p className="text-xs text-gray-400">{session.crewName}</p>
+                    <div className="hidden sm:block">
+                      <SessionBar />
                     </div>
                   )}
 
@@ -73,7 +94,7 @@ export default function Layout({ children }: LayoutProps) {
                         onClick={handleNewSession}
                         className="px-3 py-1.5 text-sm text-gray-300 hover:text-white transition-colors"
                       >
-                        New Session
+                        New
                       </button>
                     )}
                     <button

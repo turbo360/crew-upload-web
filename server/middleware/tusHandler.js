@@ -39,6 +39,14 @@ export async function tusUploadHandler(upload) {
     // Ensure destination directory exists
     await fs.mkdir(destDir, { recursive: true });
 
+    // Fix directory ownership for NAS sync
+    try {
+      const { execSync } = await import('child_process');
+      execSync(`chown -R ${config.fileOwner}:${config.fileGroup} "${destDir}"`);
+    } catch (chownErr) {
+      logger.warn('Failed to set directory ownership', { destDir, error: chownErr.message });
+    }
+
     // Generate final filename (handle duplicates)
     let finalPath = path.join(destDir, sanitizedFilename);
     let counter = 1;
@@ -53,6 +61,14 @@ export async function tusUploadHandler(upload) {
     // Move file from tus storage to final location
     const tusFilePath = path.join(config.uploadDir, '.tus', upload.id);
     await fs.rename(tusFilePath, finalPath);
+
+    // Fix file ownership for NAS sync (must be 'turbo' user, not root)
+    try {
+      const { execSync } = await import('child_process');
+      execSync(`chown ${config.fileOwner}:${config.fileGroup} "${finalPath}"`);
+    } catch (chownErr) {
+      logger.warn('Failed to set file ownership', { finalPath, error: chownErr.message });
+    }
 
     // Try to clean up .json metadata file
     try {

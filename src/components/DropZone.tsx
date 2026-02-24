@@ -4,9 +4,11 @@ interface DropZoneProps {
   onFilesDropped: (files: FileList | File[]) => void
   onBrowseFiles: () => void
   onBrowseFolders: () => void
+  batchNumber?: number
+  hasCompletedBatches?: boolean
 }
 
-export default function DropZone({ onFilesDropped, onBrowseFiles, onBrowseFolders }: DropZoneProps) {
+export default function DropZone({ onFilesDropped, onBrowseFiles, onBrowseFolders, batchNumber = 1, hasCompletedBatches = false }: DropZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDragEnter = useCallback((e: DragEvent) => {
@@ -37,6 +39,18 @@ export default function DropZone({ onFilesDropped, onBrowseFiles, onBrowseFolder
     }
   }, [onFilesDropped])
 
+  const headingText = isDragging
+    ? 'Drop files here'
+    : hasCompletedBatches
+      ? 'Ready for more files?'
+      : 'Drag and drop files here'
+
+  const subText = isDragging
+    ? ''
+    : hasCompletedBatches
+      ? `Drag and drop to start Batch ${batchNumber}`
+      : 'or use the buttons below to browse'
+
   return (
     <div
       className={`
@@ -64,9 +78,9 @@ export default function DropZone({ onFilesDropped, onBrowseFiles, onBrowseFolder
 
         {/* Text */}
         <p className={`text-lg font-medium mb-2 transition-colors ${isDragging ? 'text-turbo-blue' : 'text-white'}`}>
-          {isDragging ? 'Drop files here' : 'Drag and drop files here'}
+          {headingText}
         </p>
-        <p className="text-gray-400 mb-6">or use the buttons below to browse</p>
+        {subText && <p className="text-gray-400 mb-6">{subText}</p>}
 
         {/* Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -75,18 +89,18 @@ export default function DropZone({ onFilesDropped, onBrowseFiles, onBrowseFolder
             className="px-6 py-2.5 bg-turbo-blue hover:bg-turbo-blue-dark text-white rounded-lg font-medium transition-colors flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Browse Files
+            Select Files
           </button>
           <button
             onClick={onBrowseFolders}
             className="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Browse Folder
+            Select Folder
           </button>
         </div>
       </div>
