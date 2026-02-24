@@ -12,22 +12,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.NAS_SSH_KEY }}" > ~/.ssh/nas_key
-          chmod 600 ~/.ssh/nas_key
-          ssh-keyscan -p 22 ${{ secrets.NAS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
-
-      - name: Sync files to NAS
-        run: |
-          rsync -avz --delete \
-            --exclude 'node_modules' \
-            --exclude '.git' \
-            --exclude 'data' \
-            --exclude 'uploads' \
-            -e "ssh -i ~/.ssh/nas_key -p 22" \
-            ./ ${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/docker/crew-upload/
+      - name: Copy files to NAS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          username: ${{ secrets.NAS_USER }}
+          key: ${{ secrets.NAS_SSH_KEY }}
+          port: 22
+          source: "server/,src/,public/,package.json,package-lock.json,Dockerfile,docker-compose.yml,vite.config.ts,tailwind.config.js,postcss.config.js,tsconfig.json,tsconfig.node.json,index.html"
+          target: /volume1/docker/crew-upload
+          overwrite: true
+          strip_components: 0
 
       - name: Rebuild and restart container
         uses: appleboy/ssh-action@v1
