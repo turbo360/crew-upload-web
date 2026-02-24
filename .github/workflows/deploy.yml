@@ -17,10 +17,15 @@ jobs:
           key: ${{ secrets.NAS_SSH_KEY }}
           port: 22
           script: |
-            export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/volume1/@appstore/Git/bin:/volume1/@appstore/ContainerManager/usr/bin:$PATH"
-            set -e
-            cd /volume1/docker/crew-upload
-            git pull origin main
-            sudo docker-compose build --no-cache
-            sudo docker-compose up -d
-            echo "Deploy complete: $(date)"
+            echo "=== Finding binaries ==="
+            find /usr /volume1/@appstore /var/packages -name "git" -type f 2>/dev/null | head -10
+            find /usr /volume1/@appstore /var/packages -name "docker-compose" -type f 2>/dev/null | head -10
+            find /usr /volume1/@appstore /var/packages -name "docker" -type f 2>/dev/null | head -10
+            echo "=== Current PATH ==="
+            echo $PATH
+            echo "=== ls common locations ==="
+            ls -la /usr/local/bin/git /usr/bin/git /opt/bin/git 2>/dev/null || true
+            ls -la /usr/local/bin/docker* /usr/bin/docker* 2>/dev/null || true
+            which git 2>/dev/null || echo "git not in PATH"
+            which docker 2>/dev/null || echo "docker not in PATH"
+            which docker-compose 2>/dev/null || echo "docker-compose not in PATH"
