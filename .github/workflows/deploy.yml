@@ -33,10 +33,18 @@ jobs:
           chmod 600 ~/.ssh/nas_key
           ssh-keyscan -p 22 "$NAS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          # Pipe archive directly over SSH and extract with sudo
-          cat /tmp/deploy.tar.gz | ssh -i ~/.ssh/nas_key -p 22 "$NAS_USER@$NAS_HOST" \
-            "echo '$NAS_PASSWORD' | sudo -S tar -xzf - -C /volume1/docker/crew-upload/ 2>/dev/null"
+          SSH_CMD="ssh -i ~/.ssh/nas_key -p 22 $NAS_USER@$NAS_HOST"
 
-          # Rebuild and restart container
-          ssh -i ~/.ssh/nas_key -p 22 "$NAS_USER@$NAS_HOST" \
-            "export PATH=\"/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\$PATH\" && cd /volume1/docker/crew-upload && echo '$NAS_PASSWORD' | sudo -S docker-compose build --no-cache && echo '$NAS_PASSWORD' | sudo -S docker-compose up -d && echo 'Deploy complete: $(date)'"
+          # Step 1: Extract files
+          echo "=== Uploading and extracting files ==="
+          cat /tmp/deploy.tar.gz | $SSH_CMD "echo '${NAS_PASSWORD}' | sudo -S tar -xzf - -C /volume1/docker/crew-upload/"
+
+          # Step 2: Rebuild container
+          echo "=== Rebuilding Docker container ==="
+          $SSH_CMD "export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\$PATH && echo '${NAS_PASSWORD}' | sudo -S docker-compose -f /volume1/docker/crew-upload/docker-compose.yml build --no-cache"
+
+          # Step 3: Restart container
+          echo "=== Restarting container ==="
+          $SSH_CMD "export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\$PATH && echo '${NAS_PASSWORD}' | sudo -S docker-compose -f /volume1/docker/crew-upload/docker-compose.yml up -d"
+
+          echo "=== Deploy complete ==="
