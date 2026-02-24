@@ -1,6 +1,4 @@
 import { Router } from 'express';
-import bcrypt from 'bcrypt';
-import rateLimit from 'express-rate-limit';
 import { config } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { generateToken, authMiddleware } from '../middleware/auth.js';
@@ -8,58 +6,37 @@ import { auditModel } from '../models/database.js';
 
 const router = Router();
 
-// Hash password on startup (even though single password, we store hashed)
-let hashedPassword = null;
-(async () => {
-  hashedPassword = await bcrypt.hash(config.uploadPassword, 10);
-})();
+// Email format validation
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// Rate limiting for login attempts
-const loginLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // 10 attempts per hour
-  message: { error: 'Too many login attempts. Please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.ip
-});
+// Login endpoint - accepts name + email (no password)
+router.post('/login', async (req, res) => {
+  const { name, email } = req.body;
 
-// Login endpoint
-router.post('/login', loginLimiter, async (req, res) => {
-  const { password } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
 
-  if (!password) {
-    return res.status(400).json({ error: 'Password is required' });
+  if (!email || !email.trim()) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  if (!isValidEmail(email.trim())) {
+    return res.status(400).json({ error: 'Invalid email format' });
   }
 
   try {
-    // Compare with hashed password
-    const isValid = await bcrypt.compare(password, hashedPassword);
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
 
-    if (!isValid) {
-      logger.warn('Failed login attempt', {
-        ip: req.ip,
-        userAgent: req.headers['user-agent']
-      });
+    // Generate JWT token with user info in payload
+    const token = generateToken({ name: trimmedName, email: trimmedEmail });
 
-      auditModel.log({
-        eventType: 'login_failed',
-        details: { reason: 'invalid_password' },
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
-      });
-
-      return res.status(401).json({ error: 'Invalid password' });
-    }
-
-    // Generate JWT token
-    const token = generateToken({ authenticated: true });
-
-    logger.info('Successful login', { ip: req.ip });
+    logger.info('Successful login', { name: trimmedName, email: trimmedEmail, ip: req.ip });
 
     auditModel.log({
       eventType: 'login',
-      details: { success: true },
+      details: { name: trimmedName, email: trimmedEmail },
       ipAddress: req.ip,
       userAgent: req.headers['user-agent']
     });
