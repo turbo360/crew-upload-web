@@ -35,9 +35,9 @@ jobs:
             --exclude='uploads' \
             .
 
-          # Upload to writable parent directory on NAS
+          # Upload via SSH pipe (scp is restricted on this NAS)
           echo "=== Uploading to NAS ==="
-          scp -i $SSH_KEY -P 22 -o StrictHostKeyChecking=no /tmp/deploy.tar.gz "$REMOTE:/volume1/docker/deploy.tar.gz"
+          cat /tmp/deploy.tar.gz | ssh -i $SSH_KEY -p 22 -o StrictHostKeyChecking=no "$REMOTE" "cat > /volume1/docker/deploy.tar.gz"
 
           # Extract, swap, rebuild
           echo "=== Extracting and rebuilding ==="
