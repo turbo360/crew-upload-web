@@ -12,18 +12,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Upload files to NAS
+      - name: Upload archive to NAS
         env:
           NAS_HOST: ${{ secrets.NAS_HOST }}
           NAS_USER: ${{ secrets.NAS_USER }}
           NAS_SSH_KEY: ${{ secrets.NAS_SSH_KEY }}
         run: |
-          # Setup SSH
           mkdir -p ~/.ssh
           echo "$NAS_SSH_KEY" > ~/.ssh/nas_key
           chmod 600 ~/.ssh/nas_key
-          ssh-keyscan -H -p 22 "$NAS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          SSH="ssh -i ~/.ssh/nas_key -p 22 -o StrictHostKeyChecking=no $NAS_USER@$NAS_HOST"
 
           # Create archive
           tar -czf /tmp/deploy.tar.gz \
@@ -33,25 +30,11 @@ jobs:
             --exclude='uploads' \
             .
 
-          # Upload via SSH pipe
-          cat /tmp/deploy.tar.gz | $SSH "cat > /volume1/docker/deploy.tar.gz"
+          # Upload via SSH pipe to writable parent dir
+          cat /tmp/deploy.tar.gz | ssh -i ~/.ssh/nas_key -p 22 -o StrictHostKeyChecking=no \
+            "$NAS_USER@$NAS_HOST" "cat > /volume1/docker/deploy.tar.gz"
 
-          # Extract: create new dir, extract, swap with old
-          $SSH bash << 'SCRIPT'
-            set -e
-            rm -rf /volume1/docker/crew-upload-new
-            mkdir -p /volume1/docker/crew-upload-new
-            tar -xzf /volume1/docker/deploy.tar.gz --no-same-owner -C /volume1/docker/crew-upload-new/
-            rm -f /volume1/docker/deploy.tar.gz
-            if [ -d /volume1/docker/crew-upload/data ]; then
-              cp -a /volume1/docker/crew-upload/data /volume1/docker/crew-upload-new/data 2>/dev/null || true
-            fi
-            mv /volume1/docker/crew-upload /volume1/docker/crew-upload-old
-            mv /volume1/docker/crew-upload-new /volume1/docker/crew-upload
-            rm -rf /volume1/docker/crew-upload-old
-          SCRIPT
-
-      - name: Rebuild and restart Docker container
+      - name: Extract files and rebuild container
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.NAS_HOST }}
@@ -62,7 +45,31 @@ jobs:
           command_timeout: 10m
           script: |
             export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+            set -e
+
+            # Clean up any leftover dirs from previous failed deploys
+            sudo rm -rf /volume1/docker/crew-upload-old /volume1/docker/crew-upload-new
+
+            # Extract to new directory
+            mkdir -p /volume1/docker/crew-upload-new
+            tar -xzf /volume1/docker/deploy.tar.gz --no-same-owner -C /volume1/docker/crew-upload-new/
+            rm -f /volume1/docker/deploy.tar.gz
+
+            # Preserve data directory
+            if [ -d /volume1/docker/crew-upload/data ]; then
+              sudo cp -a /volume1/docker/crew-upload/data /volume1/docker/crew-upload-new/data
+            fi
+
+            # Swap directories
+            sudo mv /volume1/docker/crew-upload /volume1/docker/crew-upload-old
+            mv /volume1/docker/crew-upload-new /volume1/docker/crew-upload
+
+            # Rebuild and restart
             cd /volume1/docker/crew-upload
             sudo docker-compose build --no-cache
             sudo docker-compose up -d
+
+            # Cleanup
+            sudo rm -rf /volume1/docker/crew-upload-old
+
             echo "Deploy complete: $(date)"
