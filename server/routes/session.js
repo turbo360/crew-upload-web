@@ -6,6 +6,7 @@ import { config } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { sessionModel, uploadModel, auditModel } from '../models/database.js';
 import { sanitizeFilename } from '../utils/cleanup.js';
+import { sendBatchCompletionEmail } from '../utils/email.js';
 
 // Function to send upload history to turbo.net.au
 async function sendUploadHistoryWebhook(session, uploads) {
@@ -216,6 +217,40 @@ router.patch('/:id', (req, res) => {
       completedAt: updatedSession.completed_at
     }
   });
+});
+
+// Notify admin that a batch has completed
+router.post('/:id/batch-complete', async (req, res) => {
+  const { id } = req.params;
+  const { batchNumber, fileCount, completedFiles, failedFiles, totalBytes, startedAt, completedAt, fileNames } = req.body;
+
+  const session = sessionModel.getById(id);
+
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  try {
+    auditModel.log({
+      sessionId: id,
+      eventType: 'batch_complete',
+      details: { batchNumber, fileCount, completedFiles, failedFiles, totalBytes },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    // Send batch completion email in the background
+    sendBatchCompletionEmail(id, {
+      batchNumber, fileCount, completedFiles, failedFiles, totalBytes, startedAt, completedAt, fileNames
+    }).catch(err => {
+      logger.error('Batch email send failed:', err.message);
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to process batch completion', { error: error.message });
+    res.status(500).json({ error: 'Failed to process batch completion' });
+  }
 });
 
 // Get all uploads for a session

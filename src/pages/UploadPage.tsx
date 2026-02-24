@@ -1,6 +1,9 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUploadStore } from '../stores/uploadStore'
+import { useAuthStore } from '../stores/authStore'
+import { api } from '../utils/api'
+import { formatBytes } from '../utils/format'
 import DropZone from '../components/DropZone'
 import FileQueue from '../components/FileQueue'
 import BatchProgress from '../components/BatchProgress'
@@ -56,6 +59,24 @@ export default function UploadPage() {
       const totalBytes = files.reduce((sum, f) => sum + f.size, 0)
       const duration = new Date(completedAt).getTime() - new Date(startedAt).getTime()
 
+      // Notify admin of batch completion
+      const token = useAuthStore.getState().token
+      if (session && token) {
+        const completedFiles = files.filter(f => f.status === 'completed')
+        api.post(`/api/session/${session.id}/batch-complete`, {
+          batchNumber: currentBatchNumber,
+          fileCount: files.length,
+          completedFiles: completedFiles.length,
+          failedFiles: failedCount,
+          totalBytes,
+          startedAt,
+          completedAt,
+          fileNames: completedFiles.map(f => f.name)
+        }, token).catch(() => {
+          // Non-critical -- don't block batch completion
+        })
+      }
+
       // Record batch stats for the banner
       setBannerStats({
         batchNumber: currentBatchNumber,
@@ -83,7 +104,7 @@ export default function UploadPage() {
 
       return () => clearTimeout(timer)
     }
-  }, [allDone, files, currentBatchNumber, completedCount, failedCount, completeBatch, clearForNewBatch])
+  }, [allDone, files, currentBatchNumber, completedCount, failedCount, completeBatch, clearForNewBatch, session])
 
   const handleFilesSelected = useCallback((selectedFiles: FileList | File[]) => {
     addFiles(selectedFiles)
