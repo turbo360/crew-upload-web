@@ -12,7 +12,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to NAS
+      - name: Upload files to NAS
         env:
           NAS_HOST: ${{ secrets.NAS_HOST }}
           NAS_USER: ${{ secrets.NAS_USER }}
@@ -23,11 +23,9 @@ jobs:
           echo "$NAS_SSH_KEY" > ~/.ssh/nas_key
           chmod 600 ~/.ssh/nas_key
           ssh-keyscan -H -p 22 "$NAS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          SSH_KEY=~/.ssh/nas_key
-          REMOTE="$NAS_USER@$NAS_HOST"
+          SSH="ssh -i ~/.ssh/nas_key -p 22 -o StrictHostKeyChecking=no $NAS_USER@$NAS_HOST"
 
-          # Create archive (excluding unnecessary files)
-          echo "=== Creating archive ==="
+          # Create archive
           tar -czf /tmp/deploy.tar.gz \
             --exclude='node_modules' \
             --exclude='.git' \
@@ -35,38 +33,36 @@ jobs:
             --exclude='uploads' \
             .
 
-          # Upload via SSH pipe (scp is restricted on this NAS)
-          echo "=== Uploading to NAS ==="
-          cat /tmp/deploy.tar.gz | ssh -i $SSH_KEY -p 22 -o StrictHostKeyChecking=no "$REMOTE" "cat > /volume1/docker/deploy.tar.gz"
+          # Upload via SSH pipe
+          cat /tmp/deploy.tar.gz | $SSH "cat > /volume1/docker/deploy.tar.gz"
 
-          # Extract, swap, rebuild
-          echo "=== Extracting and rebuilding ==="
-          ssh -i $SSH_KEY -p 22 -o StrictHostKeyChecking=no "$REMOTE" bash << 'REMOTE_SCRIPT'
-            export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+          # Extract: create new dir, extract, swap with old
+          $SSH bash << 'SCRIPT'
             set -e
-
-            # Create new directory and extract
             rm -rf /volume1/docker/crew-upload-new
             mkdir -p /volume1/docker/crew-upload-new
             tar -xzf /volume1/docker/deploy.tar.gz --no-same-owner -C /volume1/docker/crew-upload-new/
             rm -f /volume1/docker/deploy.tar.gz
-
-            # Preserve data directory from old deploy
             if [ -d /volume1/docker/crew-upload/data ]; then
               cp -a /volume1/docker/crew-upload/data /volume1/docker/crew-upload-new/data 2>/dev/null || true
             fi
-
-            # Swap directories
             mv /volume1/docker/crew-upload /volume1/docker/crew-upload-old
             mv /volume1/docker/crew-upload-new /volume1/docker/crew-upload
-
-            # Rebuild and restart container
-            cd /volume1/docker/crew-upload
-            docker-compose build --no-cache
-            docker-compose up -d
-
-            # Cleanup
             rm -rf /volume1/docker/crew-upload-old
+          SCRIPT
 
+      - name: Rebuild and restart Docker container
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          username: ${{ secrets.NAS_USER }}
+          password: ${{ secrets.NAS_PASSWORD }}
+          key: ${{ secrets.NAS_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+            cd /volume1/docker/crew-upload
+            sudo docker-compose build --no-cache
+            sudo docker-compose up -d
             echo "Deploy complete: $(date)"
-          REMOTE_SCRIPT
