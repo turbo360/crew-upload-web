@@ -9,23 +9,38 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.NAS_SSH_KEY }}" > ~/.ssh/nas_key
+          chmod 600 ~/.ssh/nas_key
+          ssh-keyscan -p 22 ${{ secrets.NAS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync files to NAS
+        run: |
+          rsync -avz --delete \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude 'data' \
+            --exclude 'uploads' \
+            -e "ssh -i ~/.ssh/nas_key -p 22" \
+            ./ ${{ secrets.NAS_USER }}@${{ secrets.NAS_HOST }}:/volume1/docker/crew-upload/
+
+      - name: Rebuild and restart container
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.NAS_HOST }}
           username: ${{ secrets.NAS_USER }}
           key: ${{ secrets.NAS_SSH_KEY }}
           port: 22
+          command_timeout: 10m
           script: |
-            echo "=== Finding binaries ==="
-            find /usr /volume1/@appstore /var/packages -name "git" -type f 2>/dev/null | head -10
-            find /usr /volume1/@appstore /var/packages -name "docker-compose" -type f 2>/dev/null | head -10
-            find /usr /volume1/@appstore /var/packages -name "docker" -type f 2>/dev/null | head -10
-            echo "=== Current PATH ==="
-            echo $PATH
-            echo "=== ls common locations ==="
-            ls -la /usr/local/bin/git /usr/bin/git /opt/bin/git 2>/dev/null || true
-            ls -la /usr/local/bin/docker* /usr/bin/docker* 2>/dev/null || true
-            which git 2>/dev/null || echo "git not in PATH"
-            which docker 2>/dev/null || echo "docker not in PATH"
-            which docker-compose 2>/dev/null || echo "docker-compose not in PATH"
+            export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+            set -e
+            cd /volume1/docker/crew-upload
+            docker-compose build --no-cache
+            docker-compose up -d
+            echo "Deploy complete: $(date)"
