@@ -163,8 +163,8 @@ After certificate is issued:
 ## Step 9: Test the Installation
 
 1. Open `https://upload.turbo.net.au` in your browser
-2. Login with password: `tcrew26`
-3. Create a test session
+2. Enter your name, email, and project name
+3. Click "Start Uploading"
 4. Upload a small file
 5. Verify:
    - File appears in `/volume1/CrewUploads/[Project]/[Crew]/[Date]/`
@@ -235,10 +235,8 @@ sudo chmod -R 755 /volume1/CrewUploads
 
 ## Security Notes
 
-- The upload password (`tcrew26`) is intended for authorized crew only
-- Consider changing it periodically
-- All uploads are logged in the SQLite database
-- Failed login attempts are rate-limited (10 per hour per IP)
+- Access is open to anyone with the URL — crew members identify themselves by name and email
+- All logins and uploads are logged in the SQLite database
 
 ---
 

@@ -17,8 +17,10 @@ jobs:
           key: ${{ secrets.NAS_SSH_KEY }}
           port: 22
           script: |
+            export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/volume1/@appstore/Git/bin:/volume1/@appstore/ContainerManager/usr/bin:$PATH"
+            set -e
             cd /volume1/docker/crew-upload
             git pull origin main
-            docker-compose build --no-cache
-            docker-compose up -d
+            sudo docker-compose build --no-cache
+            sudo docker-compose up -d
             echo "Deploy complete: $(date)"
