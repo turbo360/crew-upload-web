@@ -26,16 +26,17 @@ jobs:
           NAS_HOST: ${{ secrets.NAS_HOST }}
           NAS_USER: ${{ secrets.NAS_USER }}
           NAS_SSH_KEY: ${{ secrets.NAS_SSH_KEY }}
+          NAS_PASSWORD: ${{ secrets.NAS_PASSWORD }}
         run: |
           mkdir -p ~/.ssh
           echo "$NAS_SSH_KEY" > ~/.ssh/nas_key
           chmod 600 ~/.ssh/nas_key
           ssh-keyscan -p 22 "$NAS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          # Pipe archive directly over SSH and extract with sudo (no temp file on NAS)
+          # Pipe archive directly over SSH and extract with sudo
           cat /tmp/deploy.tar.gz | ssh -i ~/.ssh/nas_key -p 22 "$NAS_USER@$NAS_HOST" \
-            "sudo tar -xzf - -C /volume1/docker/crew-upload/"
+            "echo '$NAS_PASSWORD' | sudo -S tar -xzf - -C /volume1/docker/crew-upload/ 2>/dev/null"
 
           # Rebuild and restart container
           ssh -i ~/.ssh/nas_key -p 22 "$NAS_USER@$NAS_HOST" \
-            'export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" && set -e && cd /volume1/docker/crew-upload && sudo docker-compose build --no-cache && sudo docker-compose up -d && echo "Deploy complete: $(date)"'
+            "export PATH=\"/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\$PATH\" && cd /volume1/docker/crew-upload && echo '$NAS_PASSWORD' | sudo -S docker-compose build --no-cache && echo '$NAS_PASSWORD' | sudo -S docker-compose up -d && echo 'Deploy complete: $(date)'"
