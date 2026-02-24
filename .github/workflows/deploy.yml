@@ -32,23 +32,10 @@ jobs:
           chmod 600 ~/.ssh/nas_key
           ssh-keyscan -p 22 "$NAS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          # Copy archive to NAS home directory
-          scp -i ~/.ssh/nas_key -P 22 /tmp/deploy.tar.gz "$NAS_USER@$NAS_HOST:~/deploy.tar.gz"
+          # Pipe archive directly over SSH and extract with sudo (no temp file on NAS)
+          cat /tmp/deploy.tar.gz | ssh -i ~/.ssh/nas_key -p 22 "$NAS_USER@$NAS_HOST" \
+            "sudo tar -xzf - -C /volume1/docker/crew-upload/"
 
-          # Extract and rebuild on NAS
-          ssh -i ~/.ssh/nas_key -p 22 "$NAS_USER@$NAS_HOST" 'bash -s' << 'REMOTE_SCRIPT'
-          export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-          set -e
-
-          cd /volume1/docker/crew-upload
-
-          # Extract new files (overwrite existing)
-          sudo tar -xzf ~/deploy.tar.gz -C /volume1/docker/crew-upload/
-          rm -f ~/deploy.tar.gz
-
-          # Rebuild and restart
-          sudo docker-compose build --no-cache
-          sudo docker-compose up -d
-
-          echo "Deploy complete: $(date)"
-          REMOTE_SCRIPT
+          # Rebuild and restart container
+          ssh -i ~/.ssh/nas_key -p 22 "$NAS_USER@$NAS_HOST" \
+            'export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" && set -e && cd /volume1/docker/crew-upload && sudo docker-compose build --no-cache && sudo docker-compose up -d && echo "Deploy complete: $(date)"'
