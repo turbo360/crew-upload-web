@@ -12,6 +12,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Fix permissions and copy files
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          username: ${{ secrets.NAS_USER }}
+          key: ${{ secrets.NAS_SSH_KEY }}
+          port: 22
+          script: |
+            sudo chown -R $USER:users /volume1/docker/crew-upload/ 2>/dev/null || true
+
       - name: Copy files to NAS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -36,6 +46,6 @@ jobs:
             export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
             set -e
             cd /volume1/docker/crew-upload
-            docker-compose build --no-cache
-            docker-compose up -d
+            sudo docker-compose build --no-cache
+            sudo docker-compose up -d
             echo "Deploy complete: $(date)"
