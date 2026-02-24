@@ -14,8 +14,8 @@ jobs:
         with:
           host: ${{ secrets.NAS_HOST }}
           username: ${{ secrets.NAS_USER }}
-          password: ${{ secrets.NAS_PASSWORD }}
-          port: ${{ secrets.NAS_PORT || 22 }}
+          key: ${{ secrets.NAS_SSH_KEY }}
+          port: 22
           script: |
             cd /volume1/docker/crew-upload
             git pull origin main
