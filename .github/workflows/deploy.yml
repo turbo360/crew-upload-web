@@ -22,7 +22,6 @@ jobs:
           echo "$NAS_SSH_KEY" > ~/.ssh/nas_key
           chmod 600 ~/.ssh/nas_key
 
-          # Create archive
           tar -czf /tmp/deploy.tar.gz \
             --exclude='node_modules' \
             --exclude='.git' \
@@ -30,7 +29,6 @@ jobs:
             --exclude='uploads' \
             .
 
-          # Upload via SSH pipe to writable parent dir
           cat /tmp/deploy.tar.gz | ssh -i ~/.ssh/nas_key -p 22 -o StrictHostKeyChecking=no \
             "$NAS_USER@$NAS_HOST" "cat > /volume1/docker/deploy.tar.gz"
 
@@ -39,16 +37,18 @@ jobs:
         with:
           host: ${{ secrets.NAS_HOST }}
           username: ${{ secrets.NAS_USER }}
-          password: ${{ secrets.NAS_PASSWORD }}
           key: ${{ secrets.NAS_SSH_KEY }}
           port: 22
           command_timeout: 10m
+          envs: SUDO_PASS
           script: |
             export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
             set -e
 
-            # Clean up any leftover dirs from previous failed deploys
-            sudo rm -rf /volume1/docker/crew-upload-old /volume1/docker/crew-upload-new
+            SUDO="echo $SUDO_PASS | sudo -S"
+
+            # Clean up leftover dirs from previous failed deploys
+            $SUDO rm -rf /volume1/docker/crew-upload-old /volume1/docker/crew-upload-new 2>/dev/null
 
             # Extract to new directory
             mkdir -p /volume1/docker/crew-upload-new
@@ -57,19 +57,21 @@ jobs:
 
             # Preserve data directory
             if [ -d /volume1/docker/crew-upload/data ]; then
-              sudo cp -a /volume1/docker/crew-upload/data /volume1/docker/crew-upload-new/data
+              $SUDO cp -a /volume1/docker/crew-upload/data /volume1/docker/crew-upload-new/data
             fi
 
             # Swap directories
-            sudo mv /volume1/docker/crew-upload /volume1/docker/crew-upload-old
+            $SUDO mv /volume1/docker/crew-upload /volume1/docker/crew-upload-old
             mv /volume1/docker/crew-upload-new /volume1/docker/crew-upload
 
             # Rebuild and restart
             cd /volume1/docker/crew-upload
-            sudo docker-compose build --no-cache
-            sudo docker-compose up -d
+            $SUDO docker-compose build --no-cache
+            $SUDO docker-compose up -d
 
             # Cleanup
-            sudo rm -rf /volume1/docker/crew-upload-old
+            $SUDO rm -rf /volume1/docker/crew-upload-old
 
             echo "Deploy complete: $(date)"
+        env:
+          SUDO_PASS: ${{ secrets.NAS_PASSWORD }}
