@@ -32,6 +32,7 @@ interface UploadState {
   removeFile: (id: string) => void
   clearCompleted: () => void
   clearAll: () => void
+  clearForNewBatch: () => void
 
   startUpload: () => void
   pauseAll: () => void
@@ -109,6 +110,15 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       }
     })
 
+    set({
+      files: [],
+      isUploading: false,
+      isPaused: false,
+      concurrentUploads: 0
+    })
+  },
+
+  clearForNewBatch: () => {
     set({
       files: [],
       isUploading: false,
