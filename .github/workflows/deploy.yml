@@ -32,8 +32,8 @@ jobs:
           chmod 600 ~/.ssh/nas_key
           ssh-keyscan -p 22 "$NAS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          # Copy archive to NAS
-          scp -i ~/.ssh/nas_key -P 22 /tmp/deploy.tar.gz "$NAS_USER@$NAS_HOST:/tmp/deploy.tar.gz"
+          # Copy archive to NAS home directory
+          scp -i ~/.ssh/nas_key -P 22 /tmp/deploy.tar.gz "$NAS_USER@$NAS_HOST:~/deploy.tar.gz"
 
           # Extract and rebuild on NAS
           ssh -i ~/.ssh/nas_key -p 22 "$NAS_USER@$NAS_HOST" 'bash -s' << 'REMOTE_SCRIPT'
@@ -43,8 +43,8 @@ jobs:
           cd /volume1/docker/crew-upload
 
           # Extract new files (overwrite existing)
-          sudo tar -xzf /tmp/deploy.tar.gz -C /volume1/docker/crew-upload/
-          rm -f /tmp/deploy.tar.gz
+          sudo tar -xzf ~/deploy.tar.gz -C /volume1/docker/crew-upload/
+          rm -f ~/deploy.tar.gz
 
           # Rebuild and restart
           sudo docker-compose build --no-cache
