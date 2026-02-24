@@ -289,6 +289,185 @@ ${config.baseUrl}
   }
 }
 
+export async function sendBatchCompletionEmail(sessionId, batchInfo) {
+  const client = getClient();
+  if (!client) {
+    logger.warn('Postmark client not configured, skipping batch email');
+    return;
+  }
+
+  const session = sessionModel.getById(sessionId);
+  if (!session) {
+    throw new Error(`Session not found: ${sessionId}`);
+  }
+
+  const { batchNumber, fileCount, completedFiles, failedFiles, totalBytes, startedAt, completedAt, fileNames } = batchInfo;
+
+  const dateTime = new Date(completedAt).toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    dateStyle: 'full',
+    timeStyle: 'short'
+  });
+
+  const duration = formatDuration(startedAt, completedAt);
+  const logoUrl = `${config.baseUrl}/logo-light.png`;
+
+  const statusColor = failedFiles > 0 ? '#F59E0B' : '#10B981';
+  const statusText = failedFiles > 0
+    ? `Batch ${batchNumber} Complete (${failedFiles} failed)`
+    : `Batch ${batchNumber} Complete`;
+
+  const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Batch Upload Complete</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #1a1a2e; color: #ffffff;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #1a1a2e;">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; background-color: #16213e; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+          <tr>
+            <td style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px 40px; text-align: center;">
+              <img src="${logoUrl}" alt="Turbo 360" height="50" style="display: block; margin: 0 auto 15px;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #ffffff;">Batch ${batchNumber} Upload Complete</h1>
+              <p style="margin: 8px 0 0; font-size: 14px; color: rgba(255,255,255,0.8);">${session.project_name} &mdash; ${session.crew_name}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px 40px 0;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  <td style="background-color: ${failedFiles > 0 ? '#78350f' : '#065f46'}; border-radius: 8px; padding: 15px 20px; text-align: center;">
+                    <span style="color: ${failedFiles > 0 ? '#fbbf24' : '#34d399'}; font-size: 14px; font-weight: 600;">&#10003; ${statusText}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 25px 40px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  <td width="32%" style="background-color: #1e3a5f; border-radius: 8px; padding: 15px; text-align: center;">
+                    <span style="color: #f97316; font-size: 28px; font-weight: 700;">${completedFiles}</span><br>
+                    <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Files</span>
+                  </td>
+                  <td width="2%"></td>
+                  <td width="32%" style="background-color: #1e3a5f; border-radius: 8px; padding: 15px; text-align: center;">
+                    <span style="color: #f97316; font-size: 28px; font-weight: 700;">${formatBytes(totalBytes).split(' ')[0]}</span><br>
+                    <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">${formatBytes(totalBytes).split(' ')[1] || 'Bytes'}</span>
+                  </td>
+                  <td width="2%"></td>
+                  <td width="32%" style="background-color: #1e3a5f; border-radius: 8px; padding: 15px; text-align: center;">
+                    <span style="color: #f97316; font-size: 28px; font-weight: 700;">${duration}</span><br>
+                    <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Duration</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          ${fileNames && fileNames.length > 0 ? `
+          <tr>
+            <td style="padding: 0 40px 25px;">
+              <h3 style="color: #ffffff; font-size: 14px; font-weight: 600; margin: 0 0 15px; text-transform: uppercase; letter-spacing: 1px;">Files in Batch ${batchNumber}</h3>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #1e3a5f; border-radius: 8px;">
+                ${fileNames.slice(0, 50).map((name, i) => `
+                <tr>
+                  <td style="padding: 10px 15px; ${i < Math.min(fileNames.length, 50) - 1 ? 'border-bottom: 1px solid #2d4a6f;' : ''}">
+                    <span style="color: #ffffff; font-size: 13px;">${name}</span>
+                  </td>
+                </tr>
+                `).join('')}
+                ${fileNames.length > 50 ? `
+                <tr>
+                  <td style="padding: 10px 15px; color: #94a3b8; font-size: 12px; font-style: italic;">
+                    ...and ${fileNames.length - 50} more files
+                  </td>
+                </tr>
+                ` : ''}
+              </table>
+            </td>
+          </tr>
+          ` : ''}
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  <td style="background-color: #0f172a; border-radius: 6px; padding: 12px 15px; font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; color: #22d3ee; word-break: break-all;">
+                    ${session.folder_path}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #0f172a; padding: 25px 40px; text-align: center;">
+              <p style="margin: 0 0 5px; color: #64748b; font-size: 12px;">Turbo 360 Crew Upload Portal</p>
+              <p style="margin: 0; color: #475569; font-size: 11px;">${config.baseUrl}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  const textBody = `
+Batch ${batchNumber} Upload Complete
+
+Project: ${session.project_name}
+Crew: ${session.crew_name}
+Date: ${dateTime}
+
+Batch Summary:
+- Files Uploaded: ${completedFiles}
+- Failed: ${failedFiles}
+- Total Size: ${formatBytes(totalBytes)}
+- Duration: ${duration}
+
+${fileNames && fileNames.length > 0 ? `Files:\n${fileNames.map(n => `- ${n}`).join('\n')}` : ''}
+
+Files saved to: ${session.folder_path}
+
+---
+Turbo 360 Crew Upload Portal
+${config.baseUrl}
+  `;
+
+  try {
+    await client.sendEmail({
+      From: 'hello@turbo360.com.au',
+      To: config.notificationEmail,
+      Subject: `Batch ${batchNumber} Complete: ${session.project_name} - ${session.crew_name} (${completedFiles} files, ${formatBytes(totalBytes)})`,
+      HtmlBody: htmlBody,
+      TextBody: textBody,
+      MessageStream: 'outbound'
+    });
+
+    logger.info('Batch completion email sent', {
+      sessionId,
+      batchNumber,
+      to: config.notificationEmail,
+      project: session.project_name,
+      crew: session.crew_name,
+      files: completedFiles
+    });
+  } catch (error) {
+    logger.error('Failed to send batch email', {
+      sessionId,
+      batchNumber,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
 export async function sendFailureNotification(sessionId, uploadId, errorMessage) {
   const client = getClient();
   if (!client) return;

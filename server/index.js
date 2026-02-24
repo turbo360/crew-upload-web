@@ -11,6 +11,7 @@ import { config } from './utils/config.js';
 import authRoutes from './routes/auth.js';
 import sessionRoutes from './routes/session.js';
 import adminRoutes from './routes/admin.js';
+import notificationRoutes from './routes/notification.js';
 import { authMiddleware } from './middleware/auth.js';
 import { tusUploadHandler } from './middleware/tusHandler.js';
 import { cleanupIncompleteUploads } from './utils/cleanup.js';
@@ -121,6 +122,7 @@ async function getDiskSpace() {
 app.use('/api/auth', authRoutes);
 app.use('/api/session', authMiddleware, sessionRoutes);
 app.use('/api/admin', authMiddleware, adminRoutes);
+app.use('/api/notification', notificationRoutes);
 
 // TUS upload endpoint (requires auth)
 const tusStore = new FileStore({
