@@ -21,38 +21,50 @@ jobs:
             --exclude='uploads' \
             .
 
-      - name: Deploy to NAS
-        env:
-          NAS_HOST: ${{ secrets.NAS_HOST }}
-          NAS_USER: ${{ secrets.NAS_USER }}
-          NAS_SSH_KEY: ${{ secrets.NAS_SSH_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$NAS_SSH_KEY" > ~/.ssh/nas_key
-          chmod 600 ~/.ssh/nas_key
-          ssh-keyscan -p 22 "$NAS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Upload archive to NAS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          username: ${{ secrets.NAS_USER }}
+          key: ${{ secrets.NAS_SSH_KEY }}
+          port: 22
+          source: "/tmp/deploy.tar.gz"
+          target: /volume1/docker
+          strip_components: 1
 
-          SSH_CMD="ssh -i ~/.ssh/nas_key -p 22 $NAS_USER@$NAS_HOST"
-
-          # Upload to a writable location (parent dir is world-writable)
-          echo "=== Uploading archive ==="
-          scp -i ~/.ssh/nas_key -P 22 /tmp/deploy.tar.gz "$NAS_USER@$NAS_HOST:/volume1/docker/deploy.tar.gz"
-
-          # Extract and rebuild
-          echo "=== Extracting and rebuilding ==="
-          $SSH_CMD << 'REMOTE'
+      - name: Extract, rebuild, and restart
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          username: ${{ secrets.NAS_USER }}
+          key: ${{ secrets.NAS_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
             export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
             set -e
 
-            cd /volume1/docker/crew-upload
-
-            # Extract with --no-same-owner to avoid permission issues
-            tar -xzf /volume1/docker/deploy.tar.gz --no-same-owner -C /volume1/docker/crew-upload/
+            # Create new directory, extract files
+            rm -rf /volume1/docker/crew-upload-new
+            mkdir -p /volume1/docker/crew-upload-new
+            tar -xzf /volume1/docker/deploy.tar.gz --no-same-owner -C /volume1/docker/crew-upload-new/
             rm -f /volume1/docker/deploy.tar.gz
 
+            # Preserve data directory (symlink or copy)
+            if [ -d /volume1/docker/crew-upload/data ]; then
+              cp -a /volume1/docker/crew-upload/data /volume1/docker/crew-upload-new/data
+            fi
+
+            # Swap directories (parent dir is writable)
+            mv /volume1/docker/crew-upload /volume1/docker/crew-upload-old
+            mv /volume1/docker/crew-upload-new /volume1/docker/crew-upload
+
             # Rebuild and restart
+            cd /volume1/docker/crew-upload
             docker-compose build --no-cache
             docker-compose up -d
 
+            # Cleanup old directory
+            rm -rf /volume1/docker/crew-upload-old
+
             echo "Deploy complete: $(date)"
-          REMOTE
