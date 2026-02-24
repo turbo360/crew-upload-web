@@ -7,7 +7,6 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - UPLOAD_PASSWORD=tcrew26
       - POSTMARK_API_KEY=***REDACTED_POSTMARK_KEY***
       - NOTIFICATION_EMAIL=hello@turbo360.com.au
       - UPLOAD_DIR=/uploads
