@@ -23,7 +23,7 @@ jobs:
           echo "$NAS_SSH_KEY" > ~/.ssh/nas_key
           chmod 600 ~/.ssh/nas_key
           ssh-keyscan -H -p 22 "$NAS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          SSH_OPTS="-i ~/.ssh/nas_key -p 22 -o StrictHostKeyChecking=no"
+          SSH_KEY=~/.ssh/nas_key
           REMOTE="$NAS_USER@$NAS_HOST"
 
           # Create archive (excluding unnecessary files)
@@ -37,11 +37,11 @@ jobs:
 
           # Upload to writable parent directory on NAS
           echo "=== Uploading to NAS ==="
-          scp $SSH_OPTS /tmp/deploy.tar.gz "$REMOTE:/volume1/docker/deploy.tar.gz"
+          scp -i $SSH_KEY -P 22 -o StrictHostKeyChecking=no /tmp/deploy.tar.gz "$REMOTE:/volume1/docker/deploy.tar.gz"
 
           # Extract, swap, rebuild
           echo "=== Extracting and rebuilding ==="
-          ssh $SSH_OPTS "$REMOTE" bash << 'REMOTE_SCRIPT'
+          ssh -i $SSH_KEY -p 22 -o StrictHostKeyChecking=no "$REMOTE" bash << 'REMOTE_SCRIPT'
             export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
             set -e
 
