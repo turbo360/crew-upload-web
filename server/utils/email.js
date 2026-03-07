@@ -37,6 +37,297 @@ function formatDuration(startDate, endDate) {
   return parts.join(' ');
 }
 
+const VIDEO_EXTS = ['mov', 'mp4', 'avi', 'mkv', 'wmv', 'flv', 'webm', 'mxf', 'r3d', 'braw', 'arf', 'prores', 'm4v', 'mts', 'm2ts', 'mpg', 'mpeg'];
+const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'tif', 'webp', 'heic', 'heif', 'raw', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'orf', 'rw2', 'psd', 'ai', 'svg'];
+const AUDIO_EXTS = ['mp3', 'wav', 'aac', 'flac', 'ogg', 'wma', 'aiff', 'aif', 'm4a', 'opus'];
+
+export function getFileTypePrefix(filename) {
+  const ext = (filename || '').split('.').pop().toLowerCase();
+  if (VIDEO_EXTS.includes(ext)) return 'VID';
+  if (IMAGE_EXTS.includes(ext)) return 'IMG';
+  if (AUDIO_EXTS.includes(ext)) return 'AUD';
+  return 'FILE';
+}
+
+/**
+ * Shared email HTML builder for all upload notification templates.
+ *
+ * @param {object} cfg
+ * @param {string} cfg.title - e.g. "Batch 3 Complete"
+ * @param {string} cfg.subtitle - e.g. "Wedding Shoot — John Smith"
+ * @param {'success'|'partial'} cfg.status
+ * @param {string} cfg.statusText - e.g. "12 files uploaded successfully"
+ * @param {Array<{value:string, label:string}>} cfg.stats
+ * @param {Array<{label:string, value:string}>} cfg.details
+ * @param {{items:Array<{name:string, size?:string}>, maxShow?:number}} [cfg.files]
+ * @param {Array<{name:string, error:string}>} [cfg.failedFiles]
+ * @param {string} [cfg.folderPath]
+ * @param {string} cfg.timestamp
+ * @param {string} [cfg.source]
+ * @returns {{html:string, text:string}}
+ */
+export function buildEmailHtml(cfg) {
+  const {
+    title,
+    subtitle,
+    status = 'success',
+    statusText,
+    stats = [],
+    details = [],
+    files,
+    failedFiles = [],
+    folderPath,
+    timestamp,
+    source
+  } = cfg;
+
+  const maxShow = files?.maxShow ?? 10;
+  const fileItems = files?.items ?? [];
+  const shownFiles = fileItems.slice(0, maxShow);
+  const remainingCount = fileItems.length - shownFiles.length;
+
+  const isSuccess = status === 'success';
+  const pillBg = isSuccess ? '#f0fdf4' : '#fef2f2';
+  const pillColor = isSuccess ? '#16a34a' : '#dc2626';
+  const pillIcon = isSuccess ? '&#10003;' : '!';
+
+  // Badge colors for file type prefixes
+  const badgeStyle = 'display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:0.5px;background-color:#fff7ed;color:#f97316;margin-right:6px;vertical-align:middle;';
+
+  // --- Stats row ---
+  let statsHtml = '';
+  if (stats.length > 0) {
+    const statCells = stats.map((s, i) => {
+      const spacer = i < stats.length - 1 ? '<td width="12"></td>' : '';
+      return `<td style="background-color:#fff7ed;border-radius:8px;padding:14px 0;text-align:center;" width="${Math.floor(100 / stats.length)}%">
+        <span style="color:#f97316;font-size:26px;font-weight:700;line-height:1;">${s.value}</span><br>
+        <span style="color:#a1a1aa;font-size:11px;text-transform:uppercase;letter-spacing:1px;">${s.label}</span>
+      </td>${spacer}`;
+    }).join('\n');
+    statsHtml = `<tr><td style="padding:0 40px 24px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"><tr>${statCells}</tr></table>
+    </td></tr>`;
+  }
+
+  // --- Details rows ---
+  let detailsHtml = '';
+  if (details.length > 0) {
+    const rows = details.map((d, i) => {
+      const border = i < details.length - 1 ? 'border-bottom:1px solid #e4e4e7;' : '';
+      return `<tr>
+        <td style="padding:10px 0;${border}color:#a1a1aa;font-size:13px;width:110px;vertical-align:top;">${d.label}</td>
+        <td style="padding:10px 0;${border}color:#18181b;font-size:14px;font-weight:500;">${d.value}</td>
+      </tr>`;
+    }).join('\n');
+    detailsHtml = `<tr><td style="padding:0 40px 24px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">${rows}</table>
+    </td></tr>`;
+  }
+
+  // --- File list ---
+  let filesHtml = '';
+  if (shownFiles.length > 0) {
+    const fileRows = shownFiles.map((f, i) => {
+      const border = (i < shownFiles.length - 1 || remainingCount > 0) ? 'border-bottom:1px solid #e4e4e7;' : '';
+      const prefix = getFileTypePrefix(f.name);
+      const sizeSpan = f.size ? `<span style="color:#a1a1aa;font-size:12px;white-space:nowrap;">${f.size}</span>` : '';
+      return `<tr>
+        <td style="padding:9px 14px;${border}">
+          <span style="${badgeStyle}">${prefix}</span>
+          <span style="color:#18181b;font-size:13px;vertical-align:middle;">${f.name}</span>
+        </td>
+        <td style="padding:9px 14px;${border}text-align:right;">${sizeSpan}</td>
+      </tr>`;
+    }).join('\n');
+
+    const moreRow = remainingCount > 0 ? `<tr>
+      <td colspan="2" style="padding:9px 14px;color:#a1a1aa;font-size:13px;font-weight:500;">+${remainingCount} more files</td>
+    </tr>` : '';
+
+    filesHtml = `<tr><td style="padding:0 40px 24px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border:1px solid #e4e4e7;border-radius:8px;border-collapse:separate;">
+        ${fileRows}
+        ${moreRow}
+      </table>
+    </td></tr>`;
+  }
+
+  // --- Failed files ---
+  let failedHtml = '';
+  if (failedFiles.length > 0) {
+    const failedRows = failedFiles.map((f, i) => {
+      const border = i < failedFiles.length - 1 ? 'border-bottom:1px solid #fecaca;' : '';
+      return `<tr>
+        <td style="padding:9px 14px;${border}">
+          <span style="color:#dc2626;font-size:13px;font-weight:500;">${f.name}</span><br>
+          <span style="color:#a1a1aa;font-size:12px;">${f.error || 'Unknown error'}</span>
+        </td>
+      </tr>`;
+    }).join('\n');
+
+    failedHtml = `<tr><td style="padding:0 40px 24px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr><td style="padding-bottom:10px;color:#dc2626;font-size:13px;font-weight:600;">Failed Uploads</td></tr>
+      </table>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;border-collapse:separate;">
+        ${failedRows}
+      </table>
+    </td></tr>`;
+  }
+
+  // --- Folder path ---
+  let folderHtml = '';
+  if (folderPath) {
+    folderHtml = `<tr><td style="padding:0 40px 24px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+        <tr>
+          <td style="background-color:#f4f4f5;border-radius:6px;padding:10px 14px;font-family:'SFMono-Regular','Menlo','Monaco',monospace;font-size:12px;color:#a1a1aa;word-break:break-all;">
+            NAS: ${folderPath}
+          </td>
+        </tr>
+      </table>
+    </td></tr>`;
+  }
+
+  // --- Footer ---
+  const footerParts = ['Turbo 360 Crew Upload'];
+  if (source) footerParts.push(source);
+  const footerLeft = footerParts.join(' &middot; ');
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f4f4f5;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#f4f4f5;">
+    <tr>
+      <td style="padding:40px 20px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin:0 auto;background-color:#ffffff;border-radius:8px;overflow:hidden;border-top:4px solid #f97316;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:32px 40px 0;">
+              <span style="color:#f97316;font-size:14px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;">TURBO 360</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:12px 40px 4px;">
+              <h1 style="margin:0;font-size:20px;font-weight:600;color:#18181b;line-height:1.3;">${title}</h1>
+            </td>
+          </tr>
+          ${subtitle ? `<tr>
+            <td style="padding:0 40px 20px;">
+              <span style="color:#a1a1aa;font-size:14px;">${subtitle}</span>
+            </td>
+          </tr>` : '<tr><td style="padding:0 0 16px;"></td></tr>'}
+
+          <!-- Divider -->
+          <tr><td style="padding:0 40px;"><div style="border-top:1px solid #e4e4e7;"></div></td></tr>
+
+          <!-- Status pill -->
+          <tr>
+            <td style="padding:20px 40px 24px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="background-color:${pillBg};border-radius:20px;padding:8px 16px;">
+                    <span style="color:${pillColor};font-size:13px;font-weight:600;">${pillIcon} ${statusText}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Stats -->
+          ${statsHtml}
+
+          <!-- Details -->
+          ${detailsHtml}
+
+          <!-- Files -->
+          ${filesHtml}
+
+          <!-- Failed -->
+          ${failedHtml}
+
+          <!-- Folder -->
+          ${folderHtml}
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:0 40px;"><div style="border-top:1px solid #e4e4e7;"></div></td>
+          </tr>
+          <tr>
+            <td style="padding:20px 40px 28px;">
+              <span style="color:#a1a1aa;font-size:12px;">${footerLeft} &middot; ${timestamp}</span>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  // --- Plain text version ---
+  const textLines = [title];
+  if (subtitle) textLines.push(subtitle);
+  textLines.push('');
+  if (statusText) textLines.push(statusText);
+  textLines.push('');
+  if (stats.length > 0) {
+    stats.forEach(s => textLines.push(`${s.label}: ${s.value}`));
+    textLines.push('');
+  }
+  if (details.length > 0) {
+    details.forEach(d => textLines.push(`${d.label}: ${d.value}`));
+    textLines.push('');
+  }
+  if (fileItems.length > 0) {
+    textLines.push('Files:');
+    shownFiles.forEach(f => {
+      const prefix = getFileTypePrefix(f.name);
+      textLines.push(`  [${prefix}] ${f.name}${f.size ? ` (${f.size})` : ''}`);
+    });
+    if (remainingCount > 0) textLines.push(`  +${remainingCount} more files`);
+    textLines.push('');
+  }
+  if (failedFiles.length > 0) {
+    textLines.push('Failed Uploads:');
+    failedFiles.forEach(f => textLines.push(`  ${f.name}: ${f.error || 'Unknown error'}`));
+    textLines.push('');
+  }
+  if (folderPath) textLines.push(`NAS: ${folderPath}`, '');
+  textLines.push('---', `${footerParts.join(' · ')} · ${timestamp}`);
+
+  return { html, text: textLines.join('\n') };
+}
+
+function formatDateAU(dateStr) {
+  return new Date(dateStr).toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+}
+
+function todayStamp() {
+  return new Date().toLocaleDateString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+}
+
 export async function sendCompletionEmail(sessionId) {
   const client = getClient();
   if (!client) {
@@ -53,224 +344,52 @@ export async function sendCompletionEmail(sessionId) {
   const completedUploads = uploads.filter(u => u.status === 'completed');
   const failedUploads = uploads.filter(u => u.status === 'failed');
 
-  const dateTime = new Date(session.created_at).toLocaleString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    dateStyle: 'full',
-    timeStyle: 'short'
-  });
-
+  const dateTime = formatDateAU(session.created_at);
   const duration = session.completed_at
     ? formatDuration(session.created_at, session.completed_at)
     : 'N/A';
 
-  // Build file list HTML
-  const fileListHtml = completedUploads.map(u =>
-    `<li>${u.filename} (${formatBytes(u.file_size)})</li>`
-  ).join('\n');
+  const hasFailures = failedUploads.length > 0;
+  const statusWord = hasFailures ? 'partial' : 'success';
+  const statusMsg = hasFailures
+    ? `${completedUploads.length} files uploaded, ${failedUploads.length} failed`
+    : `${completedUploads.length} files uploaded successfully`;
 
-  // Build failed files section if any
-  const failedSection = failedUploads.length > 0 ? `
-    <h3 style="color: #F44336; margin-top: 20px;">Failed Uploads</h3>
-    <ul>
-      ${failedUploads.map(u =>
-        `<li>${u.filename} - ${u.error_message || 'Unknown error'}</li>`
-      ).join('\n')}
-    </ul>
-  ` : '';
+  const { html, text } = buildEmailHtml({
+    title: 'Upload Complete',
+    subtitle: `${session.project_name} — ${session.crew_name}`,
+    status: statusWord,
+    statusText: statusMsg,
+    stats: [
+      { value: String(completedUploads.length), label: 'Files' },
+      { value: formatBytes(session.uploaded_bytes).split(' ')[0], label: formatBytes(session.uploaded_bytes).split(' ')[1] || 'Bytes' },
+      { value: duration, label: 'Duration' }
+    ],
+    details: [
+      { label: 'Project', value: session.project_name },
+      { label: 'Crew', value: session.crew_name },
+      { label: 'Date', value: dateTime }
+    ],
+    files: {
+      items: completedUploads.map(u => ({ name: u.filename, size: formatBytes(u.file_size) })),
+      maxShow: 10
+    },
+    failedFiles: failedUploads.map(u => ({ name: u.filename, error: u.error_message || 'Unknown error' })),
+    folderPath: session.folder_path,
+    timestamp: todayStamp(),
+    source: 'Server'
+  });
 
-  const logoUrl = `${config.baseUrl}/logo-light.png`;
-
-  const htmlBody = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Crew Upload Complete</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #1a1a2e; color: #ffffff;">
-  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #1a1a2e;">
-    <tr>
-      <td style="padding: 40px 20px;">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; background-color: #16213e; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-
-          <!-- Header with Logo -->
-          <tr>
-            <td style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px 40px; text-align: center;">
-              <img src="${logoUrl}" alt="Turbo 360" height="50" style="display: block; margin: 0 auto 15px;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #ffffff; letter-spacing: -0.5px;">Crew Upload Complete</h1>
-            </td>
-          </tr>
-
-          <!-- Success Badge -->
-          <tr>
-            <td style="padding: 30px 40px 0;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                <tr>
-                  <td style="background-color: #065f46; border-radius: 8px; padding: 15px 20px; text-align: center;">
-                    <span style="color: #34d399; font-size: 14px; font-weight: 600;">&#10003; Upload Session Completed Successfully</span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Summary Card -->
-          <tr>
-            <td style="padding: 25px 40px;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #1e3a5f; border-radius: 10px; overflow: hidden;">
-                <tr>
-                  <td style="padding: 20px;">
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                      <tr>
-                        <td style="padding: 10px 0; border-bottom: 1px solid #2d4a6f;">
-                          <span style="color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Project</span><br>
-                          <span style="color: #ffffff; font-size: 18px; font-weight: 600;">${session.project_name}</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 10px 0; border-bottom: 1px solid #2d4a6f;">
-                          <span style="color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Crew Member</span><br>
-                          <span style="color: #ffffff; font-size: 18px; font-weight: 600;">${session.crew_name}</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 10px 0;">
-                          <span style="color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Date & Time</span><br>
-                          <span style="color: #ffffff; font-size: 16px;">${dateTime}</span>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Stats Grid -->
-          <tr>
-            <td style="padding: 0 40px 25px;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                <tr>
-                  <td width="32%" style="background-color: #1e3a5f; border-radius: 8px; padding: 15px; text-align: center;">
-                    <span style="color: #f97316; font-size: 28px; font-weight: 700;">${completedUploads.length}</span><br>
-                    <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Files</span>
-                  </td>
-                  <td width="2%"></td>
-                  <td width="32%" style="background-color: #1e3a5f; border-radius: 8px; padding: 15px; text-align: center;">
-                    <span style="color: #f97316; font-size: 28px; font-weight: 700;">${formatBytes(session.uploaded_bytes).split(' ')[0]}</span><br>
-                    <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">${formatBytes(session.uploaded_bytes).split(' ')[1] || 'Bytes'}</span>
-                  </td>
-                  <td width="2%"></td>
-                  <td width="32%" style="background-color: #1e3a5f; border-radius: 8px; padding: 15px; text-align: center;">
-                    <span style="color: #f97316; font-size: 28px; font-weight: 700;">${duration.replace(/[hms]/g, '')}</span><br>
-                    <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Duration</span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- File List -->
-          <tr>
-            <td style="padding: 0 40px 25px;">
-              <h3 style="color: #ffffff; font-size: 14px; font-weight: 600; margin: 0 0 15px; text-transform: uppercase; letter-spacing: 1px;">Uploaded Files</h3>
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #1e3a5f; border-radius: 8px;">
-                ${completedUploads.map((u, i) => `
-                <tr>
-                  <td style="padding: 12px 15px; ${i < completedUploads.length - 1 ? 'border-bottom: 1px solid #2d4a6f;' : ''}">
-                    <span style="color: #ffffff; font-size: 14px;">${u.filename}</span>
-                    <span style="color: #94a3b8; font-size: 12px; float: right;">${formatBytes(u.file_size)}</span>
-                  </td>
-                </tr>
-                `).join('')}
-              </table>
-            </td>
-          </tr>
-
-          ${failedUploads.length > 0 ? `
-          <!-- Failed Files -->
-          <tr>
-            <td style="padding: 0 40px 25px;">
-              <h3 style="color: #ef4444; font-size: 14px; font-weight: 600; margin: 0 0 15px; text-transform: uppercase; letter-spacing: 1px;">Failed Uploads</h3>
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #451a1a; border-radius: 8px; border: 1px solid #7f1d1d;">
-                ${failedUploads.map((u, i) => `
-                <tr>
-                  <td style="padding: 12px 15px; ${i < failedUploads.length - 1 ? 'border-bottom: 1px solid #7f1d1d;' : ''}">
-                    <span style="color: #fca5a5; font-size: 14px;">${u.filename}</span><br>
-                    <span style="color: #f87171; font-size: 12px;">${u.error_message || 'Unknown error'}</span>
-                  </td>
-                </tr>
-                `).join('')}
-              </table>
-            </td>
-          </tr>
-          ` : ''}
-
-          <!-- File Location -->
-          <tr>
-            <td style="padding: 0 40px 30px;">
-              <h3 style="color: #ffffff; font-size: 14px; font-weight: 600; margin: 0 0 15px; text-transform: uppercase; letter-spacing: 1px;">File Location</h3>
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                <tr>
-                  <td style="background-color: #0f172a; border-radius: 6px; padding: 12px 15px; font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; color: #22d3ee; word-break: break-all;">
-                    ${session.folder_path}
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #0f172a; padding: 25px 40px; text-align: center;">
-              <p style="margin: 0 0 5px; color: #64748b; font-size: 12px;">Turbo 360 Crew Upload Portal</p>
-              <p style="margin: 0; color: #475569; font-size: 11px;">${config.baseUrl}</p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `;
-
-  const textBody = `
-Crew Upload Complete
-
-Project: ${session.project_name}
-Crew: ${session.crew_name}
-Date: ${dateTime}
-
-Summary:
-- Files Uploaded: ${completedUploads.length}
-- Total Size: ${formatBytes(session.uploaded_bytes)}
-- Duration: ${duration}
-
-Files:
-${completedUploads.map(u => `- ${u.filename} (${formatBytes(u.file_size)})`).join('\n')}
-
-${failedUploads.length > 0 ? `
-Failed Uploads:
-${failedUploads.map(u => `- ${u.filename}: ${u.error_message || 'Unknown error'}`).join('\n')}
-` : ''}
-
-Files saved to: ${session.folder_path}
-
----
-Turbo 360 Crew Upload Portal
-${config.baseUrl}
-  `;
+  const totalSize = formatBytes(session.uploaded_bytes);
+  const subject = `[Turbo 360] Upload complete: ${session.project_name} — ${session.crew_name} (${completedUploads.length} files, ${totalSize})`;
 
   try {
     await client.sendEmail({
       From: 'hello@turbo360.com.au',
       To: config.notificationEmail,
-      Subject: `Crew Upload Complete: ${session.project_name} - ${session.crew_name}`,
-      HtmlBody: htmlBody,
-      TextBody: textBody,
+      Subject: subject,
+      HtmlBody: html,
+      TextBody: text,
       MessageStream: 'outbound'
     });
 
@@ -303,150 +422,48 @@ export async function sendBatchCompletionEmail(sessionId, batchInfo) {
 
   const { batchNumber, fileCount, completedFiles, failedFiles, totalBytes, startedAt, completedAt, fileNames } = batchInfo;
 
-  const dateTime = new Date(completedAt).toLocaleString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    dateStyle: 'full',
-    timeStyle: 'short'
+  const dateTime = formatDateAU(completedAt);
+  const duration = formatDuration(startedAt, completedAt);
+
+  const hasFailures = failedFiles > 0;
+  const statusWord = hasFailures ? 'partial' : 'success';
+  const statusMsg = hasFailures
+    ? `${completedFiles} files uploaded, ${failedFiles} failed`
+    : `${completedFiles} files uploaded successfully`;
+
+  const { html, text } = buildEmailHtml({
+    title: `Batch ${batchNumber} Complete`,
+    subtitle: `${session.project_name} — ${session.crew_name}`,
+    status: statusWord,
+    statusText: statusMsg,
+    stats: [
+      { value: String(completedFiles), label: 'Files' },
+      { value: formatBytes(totalBytes).split(' ')[0], label: formatBytes(totalBytes).split(' ')[1] || 'Bytes' },
+      { value: duration, label: 'Duration' }
+    ],
+    details: [
+      { label: 'Project', value: session.project_name },
+      { label: 'Crew', value: session.crew_name },
+      { label: 'Date', value: dateTime }
+    ],
+    files: fileNames ? {
+      items: fileNames.map(n => ({ name: n })),
+      maxShow: 10
+    } : undefined,
+    folderPath: session.folder_path,
+    timestamp: todayStamp(),
+    source: 'Server'
   });
 
-  const duration = formatDuration(startedAt, completedAt);
-  const logoUrl = `${config.baseUrl}/logo-light.png`;
-
-  const statusColor = failedFiles > 0 ? '#F59E0B' : '#10B981';
-  const statusText = failedFiles > 0
-    ? `Batch ${batchNumber} Complete (${failedFiles} failed)`
-    : `Batch ${batchNumber} Complete`;
-
-  const htmlBody = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Batch Upload Complete</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #1a1a2e; color: #ffffff;">
-  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #1a1a2e;">
-    <tr>
-      <td style="padding: 40px 20px;">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; background-color: #16213e; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-          <tr>
-            <td style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px 40px; text-align: center;">
-              <img src="${logoUrl}" alt="Turbo 360" height="50" style="display: block; margin: 0 auto 15px;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #ffffff;">Batch ${batchNumber} Upload Complete</h1>
-              <p style="margin: 8px 0 0; font-size: 14px; color: rgba(255,255,255,0.8);">${session.project_name} &mdash; ${session.crew_name}</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 30px 40px 0;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                <tr>
-                  <td style="background-color: ${failedFiles > 0 ? '#78350f' : '#065f46'}; border-radius: 8px; padding: 15px 20px; text-align: center;">
-                    <span style="color: ${failedFiles > 0 ? '#fbbf24' : '#34d399'}; font-size: 14px; font-weight: 600;">&#10003; ${statusText}</span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 25px 40px;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                <tr>
-                  <td width="32%" style="background-color: #1e3a5f; border-radius: 8px; padding: 15px; text-align: center;">
-                    <span style="color: #f97316; font-size: 28px; font-weight: 700;">${completedFiles}</span><br>
-                    <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Files</span>
-                  </td>
-                  <td width="2%"></td>
-                  <td width="32%" style="background-color: #1e3a5f; border-radius: 8px; padding: 15px; text-align: center;">
-                    <span style="color: #f97316; font-size: 28px; font-weight: 700;">${formatBytes(totalBytes).split(' ')[0]}</span><br>
-                    <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">${formatBytes(totalBytes).split(' ')[1] || 'Bytes'}</span>
-                  </td>
-                  <td width="2%"></td>
-                  <td width="32%" style="background-color: #1e3a5f; border-radius: 8px; padding: 15px; text-align: center;">
-                    <span style="color: #f97316; font-size: 28px; font-weight: 700;">${duration}</span><br>
-                    <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Duration</span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          ${fileNames && fileNames.length > 0 ? `
-          <tr>
-            <td style="padding: 0 40px 25px;">
-              <h3 style="color: #ffffff; font-size: 14px; font-weight: 600; margin: 0 0 15px; text-transform: uppercase; letter-spacing: 1px;">Files in Batch ${batchNumber}</h3>
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #1e3a5f; border-radius: 8px;">
-                ${fileNames.slice(0, 50).map((name, i) => `
-                <tr>
-                  <td style="padding: 10px 15px; ${i < Math.min(fileNames.length, 50) - 1 ? 'border-bottom: 1px solid #2d4a6f;' : ''}">
-                    <span style="color: #ffffff; font-size: 13px;">${name}</span>
-                  </td>
-                </tr>
-                `).join('')}
-                ${fileNames.length > 50 ? `
-                <tr>
-                  <td style="padding: 10px 15px; color: #94a3b8; font-size: 12px; font-style: italic;">
-                    ...and ${fileNames.length - 50} more files
-                  </td>
-                </tr>
-                ` : ''}
-              </table>
-            </td>
-          </tr>
-          ` : ''}
-          <tr>
-            <td style="padding: 0 40px 30px;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                <tr>
-                  <td style="background-color: #0f172a; border-radius: 6px; padding: 12px 15px; font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; color: #22d3ee; word-break: break-all;">
-                    ${session.folder_path}
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="background-color: #0f172a; padding: 25px 40px; text-align: center;">
-              <p style="margin: 0 0 5px; color: #64748b; font-size: 12px;">Turbo 360 Crew Upload Portal</p>
-              <p style="margin: 0; color: #475569; font-size: 11px;">${config.baseUrl}</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `;
-
-  const textBody = `
-Batch ${batchNumber} Upload Complete
-
-Project: ${session.project_name}
-Crew: ${session.crew_name}
-Date: ${dateTime}
-
-Batch Summary:
-- Files Uploaded: ${completedFiles}
-- Failed: ${failedFiles}
-- Total Size: ${formatBytes(totalBytes)}
-- Duration: ${duration}
-
-${fileNames && fileNames.length > 0 ? `Files:\n${fileNames.map(n => `- ${n}`).join('\n')}` : ''}
-
-Files saved to: ${session.folder_path}
-
----
-Turbo 360 Crew Upload Portal
-${config.baseUrl}
-  `;
+  const subject = `[Turbo 360] Batch ${batchNumber}: ${session.project_name} — ${session.crew_name} (${completedFiles} files, ${formatBytes(totalBytes)})`;
 
   try {
     await client.sendEmail({
       From: 'hello@turbo360.com.au',
       To: config.notificationEmail,
-      Subject: `Batch ${batchNumber} Complete: ${session.project_name} - ${session.crew_name} (${completedFiles} files, ${formatBytes(totalBytes)})`,
-      HtmlBody: htmlBody,
-      TextBody: textBody,
+      Subject: subject,
+      HtmlBody: html,
+      TextBody: text,
       MessageStream: 'outbound'
     });
 
