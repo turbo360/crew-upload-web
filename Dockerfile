@@ -29,19 +29,11 @@ COPY --from=builder /app/dist ./dist
 # Copy server code
 COPY server ./server
 
-# Create non-root user matching NAS turbo user (uid=1030, gid=100)
-RUN addgroup -g 100 users 2>/dev/null || true && \
-    adduser -u 1030 -G users -D turbo
-
 # Create directories for data and uploads
-RUN mkdir -p /data /uploads && \
-    chown -R turbo:users /app /data /uploads
+RUN mkdir -p /data /uploads
 
 # Set environment
 ENV NODE_ENV=production
-
-# Run as turbo user
-USER turbo
 
 # Expose port
 EXPOSE 3000
