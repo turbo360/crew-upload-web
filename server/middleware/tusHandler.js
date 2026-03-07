@@ -62,12 +62,13 @@ export async function tusUploadHandler(upload) {
     const tusFilePath = path.join(config.uploadDir, '.tus', upload.id);
     await fs.rename(tusFilePath, finalPath);
 
-    // Fix file ownership for NAS sync (must be 'turbo' user, not root)
+    // Fix file ownership for NAS sync (must be turbo uid=1030, not root)
     try {
       const { execSync } = await import('child_process');
-      execSync(`chown ${config.fileOwner}:${config.fileGroup} "${finalPath}"`);
+      execSync(`chown -R ${config.fileOwner}:${config.fileGroup} "${destDir}"`);
+      logger.info('Set ownership', { destDir, owner: `${config.fileOwner}:${config.fileGroup}` });
     } catch (chownErr) {
-      logger.warn('Failed to set file ownership', { finalPath, error: chownErr.message });
+      logger.error('Failed to set file ownership', { finalPath, destDir, error: chownErr.message });
     }
 
     // Try to clean up .json metadata file

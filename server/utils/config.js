@@ -15,6 +15,6 @@ export const config = {
   maxConcurrentUploads: 3,
   cleanupDays: 7,
   sessionTimeout: 24 * 60 * 60 * 1000, // 24 hours in ms
-  fileOwner: process.env.FILE_OWNER || 'turbo',
-  fileGroup: process.env.FILE_GROUP || 'users',
+  fileOwner: process.env.FILE_OWNER || '1030',
+  fileGroup: process.env.FILE_GROUP || '100',
 };
