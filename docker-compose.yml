@@ -5,6 +5,7 @@ services:
     build: .
     container_name: crew-upload
     restart: unless-stopped
+    user: "1030:100"
     environment:
       - NODE_ENV=production
       - POSTMARK_API_KEY=8d84da95-5c70-47ea-ac72-d70d71f4c2c2
