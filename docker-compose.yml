@@ -5,8 +5,10 @@ services:
     build: .
     container_name: crew-upload
     restart: unless-stopped
+    network_mode: host
     environment:
       - NODE_ENV=production
+      - PORT=3847
       - POSTMARK_API_KEY=***REDACTED_POSTMARK_KEY***
       - NOTIFICATION_EMAIL=hello@turbo360.com.au
       - UPLOAD_DIR=/uploads
@@ -18,10 +20,8 @@ services:
     volumes:
       - "/volume1/Crew Uploads:/uploads"
       - /volume1/docker/crew-upload/data:/data
-    ports:
-      - "3847:3000"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3847/health"]
       interval: 30s
       timeout: 10s
       retries: 3
