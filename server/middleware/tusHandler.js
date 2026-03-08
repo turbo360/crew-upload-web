@@ -1,11 +1,24 @@
 import fs from 'fs/promises';
 import { createReadStream, createWriteStream } from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { config } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { uploadModel, sessionModel } from '../models/database.js';
 import { sanitizeFilename } from '../utils/cleanup.js';
 import { sendCompletionEmail } from '../utils/email.js';
+
+// Notify Synology indexer so Drive Client sees new files/folders immediately
+function notifySynology(filePath, isDir = false) {
+  try {
+    const flag = isDir ? '-A' : '-a';
+    execSync(`/usr/syno/bin/synoindex ${flag} "${filePath}"`, { timeout: 5000 });
+    logger.info(`Synology index notified: ${filePath}`);
+  } catch (err) {
+    // Non-critical — don't fail the upload if indexing fails
+    logger.warn(`Synology index notification failed: ${err.message}`);
+  }
+}
 
 // Track partial uploads waiting for concatenation: groupId -> { totalParts, receivedParts: Map<index, tusId> }
 const pendingGroups = new Map();
@@ -150,6 +163,10 @@ async function concatenateAndProcess(group) {
 
   logger.info(`File moved to final location`, { sessionId, finalPath });
 
+  // Notify Synology so Drive Client syncs this file immediately
+  notifySynology(destDir, true);
+  notifySynology(finalPath, false);
+
   // Find and update upload record (uses the groupId as tusUploadId)
   const uploadRecord = uploadModel.getByTusId(metadata.groupId);
   if (uploadRecord) {
@@ -238,6 +255,10 @@ async function processCompletedUpload(tusId, metadata) {
   } catch { /* ignore */ }
 
   logger.info(`File moved to final location`, { uploadId: tusId, sessionId, finalPath });
+
+  // Notify Synology so Drive Client syncs this file immediately
+  notifySynology(destDir, true);
+  notifySynology(finalPath, false);
 
   // Find and update upload record
   const uploadRecord = uploadModel.getByTusId(tusId);
