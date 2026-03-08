@@ -45,30 +45,37 @@ jobs:
             export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
             set -e
 
+            echo "Starting deploy..."
+
             # Clean up leftover dirs from previous failed deploys
-            echo "$SUDO_PASS" | sudo -S rm -rf /volume1/docker/crew-upload-old /volume1/docker/crew-upload-new 2>/dev/null
+            echo "$SUDO_PASS" | sudo -S rm -rf /volume1/docker/crew-upload-old /volume1/docker/crew-upload-new 2>&1 || true
 
             # Extract to new directory
+            echo "Extracting archive..."
             mkdir -p /volume1/docker/crew-upload-new
             tar -xzf /volume1/docker/deploy.tar.gz --no-same-owner -C /volume1/docker/crew-upload-new/
             rm -f /volume1/docker/deploy.tar.gz
 
             # Preserve data directory
             if [ -d /volume1/docker/crew-upload/data ]; then
-              echo "$SUDO_PASS" | sudo -S cp -a /volume1/docker/crew-upload/data /volume1/docker/crew-upload-new/data
+              echo "Preserving data directory..."
+              echo "$SUDO_PASS" | sudo -S cp -a /volume1/docker/crew-upload/data /volume1/docker/crew-upload-new/data 2>&1
             fi
 
             # Swap directories
-            echo "$SUDO_PASS" | sudo -S mv /volume1/docker/crew-upload /volume1/docker/crew-upload-old
+            echo "Swapping directories..."
+            echo "$SUDO_PASS" | sudo -S mv /volume1/docker/crew-upload /volume1/docker/crew-upload-old 2>&1
             mv /volume1/docker/crew-upload-new /volume1/docker/crew-upload
 
             # Rebuild and restart
+            echo "Building container..."
             cd /volume1/docker/crew-upload
-            echo "$SUDO_PASS" | sudo -S docker-compose build --no-cache
-            echo "$SUDO_PASS" | sudo -S docker-compose up -d
+            echo "$SUDO_PASS" | sudo -S /usr/local/bin/docker-compose build --no-cache 2>&1
+            echo "Starting container..."
+            echo "$SUDO_PASS" | sudo -S /usr/local/bin/docker-compose up -d 2>&1
 
             # Cleanup
-            echo "$SUDO_PASS" | sudo -S rm -rf /volume1/docker/crew-upload-old
+            echo "$SUDO_PASS" | sudo -S rm -rf /volume1/docker/crew-upload-old 2>&1 || true
 
             echo "Deploy complete: $(date)"
         env:
