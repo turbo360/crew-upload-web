@@ -93,10 +93,12 @@ router.post('/create', async (req, res) => {
     // Create the folder structure
     await fs.mkdir(folderPath, { recursive: true });
 
-    // Fix directory ownership for NAS sync
+    // Fix directory ownership for NAS sync - chown from project level down
+    // so all parent dirs (project/crew/timestamp) are owned by turbo, not root
     try {
       const { execSync } = await import('child_process');
-      execSync(`chown -R ${config.fileOwner}:${config.fileGroup} "${folderPath}"`);
+      const projectDir = path.join(config.uploadDir, sanitizedProject);
+      execSync(`chown -R ${config.fileOwner}:${config.fileGroup} "${projectDir}"`);
     } catch (chownErr) {
       logger.warn('Failed to set directory ownership', { folderPath, error: chownErr.message });
     }

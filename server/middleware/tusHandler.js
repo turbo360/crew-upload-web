@@ -39,10 +39,10 @@ export async function tusUploadHandler(upload) {
     // Ensure destination directory exists
     await fs.mkdir(destDir, { recursive: true });
 
-    // Fix directory ownership for NAS sync
+    // Fix directory ownership for NAS sync - chown from session folder root down
     try {
       const { execSync } = await import('child_process');
-      execSync(`chown -R ${config.fileOwner}:${config.fileGroup} "${destDir}"`);
+      execSync(`chown -R ${config.fileOwner}:${config.fileGroup} "${session.folder_path}"`);
     } catch (chownErr) {
       logger.warn('Failed to set directory ownership', { destDir, error: chownErr.message });
     }
@@ -65,10 +65,10 @@ export async function tusUploadHandler(upload) {
     // Fix file ownership for NAS sync (must be turbo uid=1030, not root)
     try {
       const { execSync } = await import('child_process');
-      execSync(`chown -R ${config.fileOwner}:${config.fileGroup} "${destDir}"`);
-      logger.info('Set ownership', { destDir, owner: `${config.fileOwner}:${config.fileGroup}` });
+      execSync(`chown ${config.fileOwner}:${config.fileGroup} "${finalPath}"`);
+      logger.info('Set ownership', { finalPath, owner: `${config.fileOwner}:${config.fileGroup}` });
     } catch (chownErr) {
-      logger.error('Failed to set file ownership', { finalPath, destDir, error: chownErr.message });
+      logger.error('Failed to set file ownership', { finalPath, error: chownErr.message });
     }
 
     // Try to clean up .json metadata file
