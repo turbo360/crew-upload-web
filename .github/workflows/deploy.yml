@@ -67,6 +67,11 @@ jobs:
             echo "$SUDO_PASS" | sudo -S mv /volume1/docker/crew-upload /volume1/docker/crew-upload-old 2>&1
             mv /volume1/docker/crew-upload-new /volume1/docker/crew-upload
 
+            # Stop and remove old container before rebuild
+            echo "Stopping old container..."
+            echo "$SUDO_PASS" | sudo -S /usr/local/bin/docker stop crew-upload 2>&1 || true
+            echo "$SUDO_PASS" | sudo -S /usr/local/bin/docker rm crew-upload 2>&1 || true
+
             # Rebuild and restart
             echo "Building container..."
             cd /volume1/docker/crew-upload
