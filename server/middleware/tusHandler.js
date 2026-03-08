@@ -8,12 +8,18 @@ import { uploadModel, sessionModel } from '../models/database.js';
 import { sanitizeFilename } from '../utils/cleanup.js';
 import { sendCompletionEmail } from '../utils/email.js';
 
-// Notify Synology indexer so Drive Client sees new files/folders immediately
-function notifySynology(filePath, isDir = false) {
+// Notify Synology indexer so Drive Client sees new files/folders immediately.
+// synoindex runs on the host, so we use nsenter (requires pid:host in docker-compose).
+// Paths must be translated from container (/uploads) to host (/volume1/Crew Uploads).
+function notifySynology(containerPath, isDir = false) {
   try {
+    const hostPath = containerPath.replace(/^\/uploads/, '/volume1/Crew Uploads');
     const flag = isDir ? '-A' : '-a';
-    execSync(`/usr/syno/bin/synoindex ${flag} "${filePath}"`, { timeout: 5000 });
-    logger.info(`Synology index notified: ${filePath}`);
+    execSync(
+      `nsenter -t 1 -m -- /usr/syno/bin/synoindex ${flag} "${hostPath}"`,
+      { timeout: 5000 }
+    );
+    logger.info(`Synology index notified: ${hostPath}`);
   } catch (err) {
     // Non-critical — don't fail the upload if indexing fails
     logger.warn(`Synology index notification failed: ${err.message}`);
