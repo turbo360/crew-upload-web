@@ -45,8 +45,8 @@ interface UploadState {
   updateFileStatus: (id: string, status: UploadStatus, error?: string) => void
 }
 
-const MAX_CONCURRENT = 3
-const CHUNK_SIZE = 50 * 1024 * 1024 // 50MB
+const MAX_CONCURRENT = 5
+const CHUNK_SIZE = 100 * 1024 * 1024 // 100MB
 
 export const useUploadStore = create<UploadState>((set, get) => ({
   files: [],
@@ -310,7 +310,7 @@ async function startFileUpload(uploadFile: UploadFile, sessionId: string, token:
     // Create tus upload
     const upload = new tus.Upload(uploadFile.file, {
       endpoint: '/files',
-      retryDelays: [0, 1000, 3000, 5000, 10000],
+      retryDelays: [1000, 3000, 5000],
       chunkSize: CHUNK_SIZE,
       metadata: {
         filename: uploadFile.filename,
