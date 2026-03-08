@@ -21,6 +21,7 @@ services:
       - "/volume1/Crew Uploads:/uploads"
       - /volume1/docker/crew-upload/data:/data
     pid: host
+    privileged: true
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3847/health"]
       interval: 30s
