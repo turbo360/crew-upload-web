@@ -1,30 +1,11 @@
 import fs from 'fs/promises';
 import { createReadStream, createWriteStream } from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
 import { config } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import { uploadModel, sessionModel } from '../models/database.js';
 import { sanitizeFilename } from '../utils/cleanup.js';
 import { sendCompletionEmail } from '../utils/email.js';
-
-// Notify Synology indexer so Drive Client sees new files/folders immediately.
-// synoindex runs on the host, so we use nsenter (requires pid:host in docker-compose).
-// Paths must be translated from container (/uploads) to host (/volume1/Crew Uploads).
-function notifySynology(containerPath, isDir = false) {
-  try {
-    const hostPath = containerPath.replace(/^\/uploads/, '/volume1/Crew Uploads');
-    const flag = isDir ? '-A' : '-a';
-    execSync(
-      `nsenter -t 1 -m -- /usr/syno/bin/synoindex ${flag} "${hostPath}"`,
-      { timeout: 5000 }
-    );
-    logger.info(`Synology index notified: ${hostPath}`);
-  } catch (err) {
-    // Non-critical — don't fail the upload if indexing fails
-    logger.warn(`Synology index notification failed: ${err.message}`);
-  }
-}
 
 // Track partial uploads waiting for concatenation: groupId -> { totalParts, receivedParts: Map<index, tusId> }
 const pendingGroups = new Map();
@@ -169,10 +150,6 @@ async function concatenateAndProcess(group) {
 
   logger.info(`File moved to final location`, { sessionId, finalPath });
 
-  // Notify Synology so Drive Client syncs this file immediately
-  notifySynology(destDir, true);
-  notifySynology(finalPath, false);
-
   // Find and update upload record (uses the groupId as tusUploadId)
   const uploadRecord = uploadModel.getByTusId(metadata.groupId);
   if (uploadRecord) {
@@ -261,10 +238,6 @@ async function processCompletedUpload(tusId, metadata) {
   } catch { /* ignore */ }
 
   logger.info(`File moved to final location`, { uploadId: tusId, sessionId, finalPath });
-
-  // Notify Synology so Drive Client syncs this file immediately
-  notifySynology(destDir, true);
-  notifySynology(finalPath, false);
 
   // Find and update upload record
   const uploadRecord = uploadModel.getByTusId(tusId);

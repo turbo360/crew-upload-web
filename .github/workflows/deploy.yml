@@ -1,4 +1,4 @@
-name: Deploy to NAS
+name: Deploy to Shootzu
 
 on:
   push:
@@ -12,76 +12,109 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Upload archive to NAS
-        env:
-          NAS_HOST: ${{ secrets.NAS_HOST }}
-          NAS_USER: ${{ secrets.NAS_USER }}
-          NAS_SSH_KEY: ${{ secrets.NAS_SSH_KEY }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "$NAS_SSH_KEY" > ~/.ssh/nas_key
-          chmod 600 ~/.ssh/nas_key
+          echo "${{ secrets.SHOOTZU_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SHOOTZU_HOST }} >> ~/.ssh/known_hosts
 
-          tar -czf /tmp/deploy.tar.gz \
-            --exclude='node_modules' \
-            --exclude='.git' \
-            --exclude='data' \
-            --exclude='uploads' \
-            .
-
-          cat /tmp/deploy.tar.gz | ssh -i ~/.ssh/nas_key -p 22 -o StrictHostKeyChecking=no \
-            "$NAS_USER@$NAS_HOST" "cat > /volume1/docker/deploy.tar.gz"
-
-      - name: Extract files and rebuild container
+      - name: Backup current deployment
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.NAS_HOST }}
-          username: ${{ secrets.NAS_USER }}
-          key: ${{ secrets.NAS_SSH_KEY }}
-          port: 22
-          command_timeout: 10m
-          envs: SUDO_PASS
+          host: ${{ secrets.SHOOTZU_HOST }}
+          username: ${{ secrets.SHOOTZU_USER }}
+          key: ${{ secrets.SHOOTZU_SSH_KEY }}
           script: |
-            export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
             set -e
+            DEPLOY_DIR="/opt/crew-uploads/server-src"
+            BACKUP_DIR="/opt/crew-uploads/server-src.deploy-backup"
+            rm -rf "$BACKUP_DIR"
+            mkdir -p "$BACKUP_DIR"
+            # Backup server/ and dist/ only (the deployable artifacts)
+            [ -d "$DEPLOY_DIR/server" ] && cp -a "$DEPLOY_DIR/server" "$BACKUP_DIR/server"
+            [ -d "$DEPLOY_DIR/dist" ] && cp -a "$DEPLOY_DIR/dist" "$BACKUP_DIR/dist"
+            [ -f "$DEPLOY_DIR/package.json" ] && cp -a "$DEPLOY_DIR/package.json" "$BACKUP_DIR/"
+            [ -f "$DEPLOY_DIR/package-lock.json" ] && cp -a "$DEPLOY_DIR/package-lock.json" "$BACKUP_DIR/"
+            echo "Backup complete"
 
-            echo "Starting deploy..."
+      - name: Deploy server and frontend
+        run: |
+          # Sync server/ with --delete (replace old server code completely)
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            server/ \
+            ${{ secrets.SHOOTZU_USER }}@${{ secrets.SHOOTZU_HOST }}:/opt/crew-uploads/server-src/server/
 
-            # Clean up leftover dirs from previous failed deploys
-            echo "$SUDO_PASS" | sudo -S rm -rf /volume1/docker/crew-upload-old /volume1/docker/crew-upload-new 2>&1 || true
+          # Sync dist/ with --delete (replace old frontend build completely)
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            dist/ \
+            ${{ secrets.SHOOTZU_USER }}@${{ secrets.SHOOTZU_HOST }}:/opt/crew-uploads/server-src/dist/
 
-            # Extract to new directory
-            echo "Extracting archive..."
-            mkdir -p /volume1/docker/crew-upload-new
-            tar -xzf /volume1/docker/deploy.tar.gz --no-same-owner -C /volume1/docker/crew-upload-new/
-            rm -f /volume1/docker/deploy.tar.gz
+          # Sync package files (no --delete, just update)
+          rsync -avz \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            package.json package-lock.json \
+            ${{ secrets.SHOOTZU_USER }}@${{ secrets.SHOOTZU_HOST }}:/opt/crew-uploads/server-src/
 
-            # Preserve data directory
-            if [ -d /volume1/docker/crew-upload/data ]; then
-              echo "Preserving data directory..."
-              echo "$SUDO_PASS" | sudo -S cp -a /volume1/docker/crew-upload/data /volume1/docker/crew-upload-new/data 2>&1
+      - name: Install dependencies and restart
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SHOOTZU_HOST }}
+          username: ${{ secrets.SHOOTZU_USER }}
+          key: ${{ secrets.SHOOTZU_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/crew-uploads/server-src
+            npm ci --omit=dev
+            systemctl restart crew-upload-api
+            echo "Service restarted, waiting for startup..."
+            sleep 3
+
+      - name: Health check
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SHOOTZU_HOST }}
+          username: ${{ secrets.SHOOTZU_USER }}
+          key: ${{ secrets.SHOOTZU_SSH_KEY }}
+          script: |
+            set -e
+            HEALTH=$(curl -sf http://localhost:8086/health || echo "FAIL")
+            if echo "$HEALTH" | grep -q "FAIL"; then
+              echo "Health check failed — rolling back..."
+              DEPLOY_DIR="/opt/crew-uploads/server-src"
+              BACKUP_DIR="/opt/crew-uploads/server-src.deploy-backup"
+              rm -rf "$DEPLOY_DIR/server" "$DEPLOY_DIR/dist"
+              cp -a "$BACKUP_DIR/server" "$DEPLOY_DIR/server" 2>/dev/null || true
+              cp -a "$BACKUP_DIR/dist" "$DEPLOY_DIR/dist" 2>/dev/null || true
+              cp -a "$BACKUP_DIR/package.json" "$DEPLOY_DIR/" 2>/dev/null || true
+              cp -a "$BACKUP_DIR/package-lock.json" "$DEPLOY_DIR/" 2>/dev/null || true
+              cd "$DEPLOY_DIR" && npm ci --omit=dev
+              systemctl restart crew-upload-api
+              echo "Rollback complete"
+              exit 1
             fi
+            echo "Health check passed: $HEALTH"
 
-            # Swap directories
-            echo "Swapping directories..."
-            echo "$SUDO_PASS" | sudo -S mv /volume1/docker/crew-upload /volume1/docker/crew-upload-old 2>&1
-            mv /volume1/docker/crew-upload-new /volume1/docker/crew-upload
-
-            # Stop and remove old container before rebuild
-            echo "Stopping old container..."
-            echo "$SUDO_PASS" | sudo -S /usr/local/bin/docker stop crew-upload 2>&1 || true
-            echo "$SUDO_PASS" | sudo -S /usr/local/bin/docker rm crew-upload 2>&1 || true
-
-            # Rebuild and restart
-            echo "Building container..."
-            cd /volume1/docker/crew-upload
-            echo "$SUDO_PASS" | sudo -S /usr/local/bin/docker-compose build --no-cache 2>&1
-            echo "Starting container..."
-            echo "$SUDO_PASS" | sudo -S /usr/local/bin/docker-compose up -d 2>&1
-
-            # Cleanup
-            echo "$SUDO_PASS" | sudo -S rm -rf /volume1/docker/crew-upload-old 2>&1 || true
-
+      - name: Cleanup backup
+        if: success()
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SHOOTZU_HOST }}
+          username: ${{ secrets.SHOOTZU_USER }}
+          key: ${{ secrets.SHOOTZU_SSH_KEY }}
+          script: |
+            rm -rf /opt/crew-uploads/server-src.deploy-backup
             echo "Deploy complete: $(date)"
-        env:
-          SUDO_PASS: ${{ secrets.NAS_PASSWORD }}
