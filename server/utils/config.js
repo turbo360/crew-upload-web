@@ -21,4 +21,5 @@ export const config = {
   smsGlobalSecret: process.env.SMSGLOBAL_API_SECRET || '',
   smsNotificationNumber: process.env.SMS_NOTIFICATION_NUMBER || '+61499944333',
   smsSenderName: process.env.SMS_SENDER_NAME || 'Turbo 360',
+  accessPin: process.env.ACCESS_PIN || '2221',
 };

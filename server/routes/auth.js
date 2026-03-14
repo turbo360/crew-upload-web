@@ -9,6 +9,19 @@ const router = Router();
 // Email format validation
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
+// PIN verification endpoint
+router.post('/pin', (req, res) => {
+  const { pin } = req.body;
+
+  if (!pin || pin.trim() !== config.accessPin) {
+    logger.warn('Invalid PIN attempt', { ip: req.ip });
+    return res.status(401).json({ error: 'Invalid PIN' });
+  }
+
+  logger.info('PIN verified', { ip: req.ip });
+  res.json({ success: true });
+});
+
 // Login endpoint - accepts name + email (no password)
 router.post('/login', async (req, res) => {
   const { name, email } = req.body;

@@ -6,9 +6,11 @@ interface AuthState {
   token: string | null
   userName: string | null
   userEmail: string | null
+  pinVerified: boolean
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
+  verifyPin: (pin: string) => Promise<boolean>
   login: (name: string, email: string) => Promise<boolean>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
@@ -21,9 +23,23 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       userName: null,
       userEmail: null,
+      pinVerified: false,
       isAuthenticated: false,
       isLoading: false,
       error: null,
+
+      verifyPin: async (pin: string) => {
+        set({ isLoading: true, error: null })
+        try {
+          await api.post('/api/auth/pin', { pin })
+          set({ pinVerified: true, isLoading: false })
+          return true
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Invalid PIN'
+          set({ error: message, isLoading: false })
+          return false
+        }
+      },
 
       login: async (name: string, email: string) => {
         set({ isLoading: true, error: null })
@@ -73,6 +89,7 @@ export const useAuthStore = create<AuthState>()(
           token: null,
           userName: null,
           userEmail: null,
+          pinVerified: false,
           isAuthenticated: false,
           error: null
         })
@@ -120,7 +137,8 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         token: state.token,
         userName: state.userName,
-        userEmail: state.userEmail
+        userEmail: state.userEmail,
+        pinVerified: state.pinVerified
       })
     }
   )
