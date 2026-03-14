@@ -9,7 +9,7 @@ const router = Router();
 // Email format validation
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// PIN verification endpoint
+// PIN verification endpoint — returns a JWT for the web portal
 router.post('/pin', (req, res) => {
   const { pin } = req.body;
 
@@ -18,8 +18,10 @@ router.post('/pin', (req, res) => {
     return res.status(401).json({ error: 'Invalid PIN' });
   }
 
+  const token = generateToken({ name: 'Web Portal', email: 'portal@turbo360.com.au' });
+
   logger.info('PIN verified', { ip: req.ip });
-  res.json({ success: true });
+  res.json({ success: true, token });
 });
 
 // Login endpoint - accepts name + email (no password)

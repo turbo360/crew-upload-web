@@ -60,8 +60,19 @@ async function sendUploadHistoryWebhook(session, uploads) {
 
 const router = Router();
 
+// Web portal session creation (accepts name instead of crewName)
+router.post('/web-create', async (req, res) => {
+  req.body.crewName = req.body.crewName || req.body.name;
+  // Fall through to /create handler
+  createSession(req, res);
+});
+
 // Create new upload session
 router.post('/create', async (req, res) => {
+  createSession(req, res);
+});
+
+async function createSession(req, res) {
   const { crewName, projectName } = req.body;
 
   if (!crewName || !projectName) {
@@ -144,7 +155,7 @@ router.post('/create', async (req, res) => {
     logger.error('Failed to create session', { error: error.message });
     res.status(500).json({ error: 'Failed to create upload session' });
   }
-});
+}
 
 // Get session details
 router.get('/:id', (req, res) => {
