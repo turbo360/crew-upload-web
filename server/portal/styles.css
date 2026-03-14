@@ -1,0 +1,226 @@
+/* Card */
+.card {
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  border-radius: 1rem;
+  padding: 2rem;
+  backdrop-filter: blur(8px);
+}
+
+/* PIN digits */
+.pin-digit {
+  width: 3.5rem;
+  height: 4rem;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.6);
+  border: 2px solid rgba(71, 85, 105, 0.5);
+  border-radius: 0.75rem;
+  color: white;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.pin-digit:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+}
+
+.pin-digit.filled {
+  border-color: #f97316;
+}
+
+/* Input fields */
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 2px solid rgba(71, 85, 105, 0.5);
+  border-radius: 0.75rem;
+  color: white;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-field:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+}
+
+.input-field::placeholder {
+  color: rgba(148, 163, 184, 0.5);
+}
+
+/* Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  background: #f97316;
+  color: white;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 0.75rem;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s, transform 0.1s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #ea580c;
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  background: rgba(71, 85, 105, 0.5);
+  color: #cbd5e1;
+  font-weight: 500;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-secondary:hover {
+  background: rgba(71, 85, 105, 0.8);
+}
+
+/* Drop Zone */
+.drop-zone {
+  border: 2px dashed rgba(71, 85, 105, 0.5);
+  border-radius: 1rem;
+  padding: 2rem;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s;
+  cursor: pointer;
+}
+
+.drop-zone.drag-over {
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.05);
+}
+
+.drop-zone.has-files {
+  border-style: solid;
+  border-color: rgba(71, 85, 105, 0.3);
+  padding: 1rem;
+}
+
+/* Progress bars */
+.progress-bar-bg {
+  width: 100%;
+  height: 0.5rem;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f97316, #fb923c);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.progress-bar-fill.complete {
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+}
+
+/* File item */
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.file-item .file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #cbd5e1;
+}
+
+.file-item .file-size {
+  color: #64748b;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+.file-item .file-status {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+.file-item .file-progress {
+  width: 4rem;
+  flex-shrink: 0;
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid rgba(249, 115, 22, 0.3);
+  border-top-color: #f97316;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Remove button on file items */
+.file-remove {
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.125rem;
+  border-radius: 0.25rem;
+  transition: color 0.2s;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.file-remove:hover {
+  color: #ef4444;
+}
+
+/* Scrollbar */
+#file-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+#file-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#file-list::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.5);
+  border-radius: 3px;
+}

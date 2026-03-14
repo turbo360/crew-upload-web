@@ -160,15 +160,12 @@ app.all('/files/*', authMiddleware, (req, res) => {
   tusServer.handle(req, res);
 });
 
-// Serve static files in production
-if (config.nodeEnv === 'production') {
-  const distPath = path.join(__dirname, '..', 'dist');
-  app.use(express.static(distPath));
-
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-}
+// Serve web upload portal
+const portalPath = path.join(__dirname, 'portal');
+app.use('/portal', express.static(portalPath));
+app.get('/', (req, res) => {
+  res.redirect('/portal');
+});
 
 // Error handling
 app.use((err, req, res, next) => {

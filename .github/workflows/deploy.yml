@@ -12,17 +12,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Build frontend
-        run: |
-          npm ci
-          npm run build
-
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -42,14 +31,12 @@ jobs:
             BAK="/opt/crew-uploads/deploy-backup"
             rm -rf "$BAK"
             mkdir -p "$BAK"
-            # Backup deployable artifacts (server code + frontend)
-            for d in middleware models routes utils; do
+            for d in middleware models routes utils portal; do
               [ -d "$SRC/$d" ] && cp -a "$SRC/$d" "$BAK/$d"
             done
             [ -f "$SRC/index.js" ] && cp -a "$SRC/index.js" "$BAK/"
             [ -f "$SRC/package.json" ] && cp -a "$SRC/package.json" "$BAK/"
             [ -f "$SRC/package-lock.json" ] && cp -a "$SRC/package-lock.json" "$BAK/"
-            [ -d "/opt/crew-uploads/dist" ] && cp -a "/opt/crew-uploads/dist" "$BAK/dist"
             echo "Backup complete"
 
       - name: Deploy server code
@@ -58,12 +45,10 @@ jobs:
           REMOTE="${{ secrets.SHOOTZU_USER }}@${{ secrets.SHOOTZU_HOST }}"
           SRC="/opt/crew-uploads/server-src"
 
-          # Sync server code files (index.js, middleware/, models/, routes/, utils/)
-          # Uses --delete to clean old files, but excludes non-deployable dirs
+          # Sync server code (index.js, middleware/, models/, routes/, utils/, portal/)
           rsync -avz --delete \
             --exclude='.env' \
             --exclude='node_modules/' \
-            --exclude='portal/' \
             --exclude='*.bak' \
             -e "$SSH" \
             server/ \
@@ -72,14 +57,8 @@ jobs:
           # Sync package files
           rsync -avz \
             -e "$SSH" \
-            package.json package-lock.json \
+            package.json \
             ${REMOTE}:${SRC}/
-
-          # Sync frontend build to /opt/crew-uploads/dist/
-          rsync -avz --delete \
-            -e "$SSH" \
-            dist/ \
-            ${REMOTE}:/opt/crew-uploads/dist/
 
       - name: Install dependencies and restart
         uses: appleboy/ssh-action@v1
@@ -90,7 +69,7 @@ jobs:
           script: |
             set -e
             cd /opt/crew-uploads/server-src
-            npm ci --omit=dev
+            npm install --omit=dev
             systemctl restart crew-upload-api
             echo "Service restarted, waiting for startup..."
             sleep 5
@@ -103,7 +82,6 @@ jobs:
           key: ${{ secrets.SHOOTZU_SSH_KEY }}
           script: |
             set -e
-            # Retry health check up to 3 times (service may need a moment)
             for i in 1 2 3; do
               HEALTH=$(curl -sf http://localhost:8086/health 2>&1) && break
               echo "Attempt $i failed, waiting..."
@@ -114,17 +92,14 @@ jobs:
               echo "Health check failed — rolling back..."
               SRC="/opt/crew-uploads/server-src"
               BAK="/opt/crew-uploads/deploy-backup"
-              # Restore server code
-              for d in middleware models routes utils; do
+              for d in middleware models routes utils portal; do
                 rm -rf "$SRC/$d"
                 [ -d "$BAK/$d" ] && cp -a "$BAK/$d" "$SRC/$d"
               done
               [ -f "$BAK/index.js" ] && cp -a "$BAK/index.js" "$SRC/"
               [ -f "$BAK/package.json" ] && cp -a "$BAK/package.json" "$SRC/"
               [ -f "$BAK/package-lock.json" ] && cp -a "$BAK/package-lock.json" "$SRC/"
-              # Restore frontend
-              [ -d "$BAK/dist" ] && rm -rf /opt/crew-uploads/dist && cp -a "$BAK/dist" /opt/crew-uploads/dist
-              cd "$SRC" && npm ci --omit=dev
+              cd "$SRC" && npm install --omit=dev
               systemctl restart crew-upload-api
               echo "Rollback complete"
               exit 1
