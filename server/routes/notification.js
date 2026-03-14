@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { logger } from '../utils/logger.js';
 import { config } from '../utils/config.js';
 import { buildEmailHtml, getFileTypePrefix } from '../utils/email.js';
+import { sendSms } from '../utils/sms.js';
 
 const router = Router();
 
@@ -82,6 +83,12 @@ router.post('/upload-complete', async (req, res) => {
       batchNumber,
       fileCount,
       to: config.notificationEmail
+    });
+
+    // Send SMS notification for batch completion
+    const batchMsg = batchNumber ? `Batch ${batchNumber}` : 'Upload';
+    sendSms(`Crew Upload: ${crewName} completed ${batchMsg} — ${fileCount} files (${totalSize})`).catch(err => {
+      logger.error('SMS send failed:', err.message);
     });
 
     res.json({ success: true });
