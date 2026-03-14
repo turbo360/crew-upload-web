@@ -14,6 +14,12 @@ router.post('/upload-complete', async (req, res) => {
     return res.status(400).json({ error: 'projectName and crewName are required' });
   }
 
+  // Send SMS notification for batch completion (independent of email)
+  const batchMsg = batchNumber ? `Batch ${batchNumber}` : 'Upload';
+  sendSms(`Crew Upload: ${crewName} completed ${batchMsg} — ${fileCount} files (${totalSize})`).catch(err => {
+    logger.error('SMS send failed:', err.message);
+  });
+
   try {
     const { ServerClient } = await import('postmark');
 
@@ -83,12 +89,6 @@ router.post('/upload-complete', async (req, res) => {
       batchNumber,
       fileCount,
       to: config.notificationEmail
-    });
-
-    // Send SMS notification for batch completion
-    const batchMsg = batchNumber ? `Batch ${batchNumber}` : 'Upload';
-    sendSms(`Crew Upload: ${crewName} completed ${batchMsg} — ${fileCount} files (${totalSize})`).catch(err => {
-      logger.error('SMS send failed:', err.message);
     });
 
     res.json({ success: true });
