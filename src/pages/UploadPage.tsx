@@ -3,7 +3,6 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useUploadStore } from '../stores/uploadStore'
 import { useAuthStore } from '../stores/authStore'
 import { api } from '../utils/api'
-import { formatBytes } from '../utils/format'
 import DropZone from '../components/DropZone'
 import FileQueue from '../components/FileQueue'
 import BatchProgress from '../components/BatchProgress'
@@ -16,7 +15,6 @@ export default function UploadPage() {
   const { session, batches, currentBatchNumber, completeBatch } = useSessionStore()
   const { files, addFiles, clearForNewBatch } = useUploadStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const folderInputRef = useRef<HTMLInputElement>(null)
 
   // Track the batch start time
   const batchStartRef = useRef<string | null>(null)
@@ -116,34 +114,23 @@ export default function UploadPage() {
     fileInputRef.current?.click()
   }
 
-  const handleBrowseFolders = () => {
-    folderInputRef.current?.click()
-  }
+  const handleStartNextBatch = useCallback(() => {
+    setShowBanner(false)
+    setBannerStats(null)
+  }, [])
 
   if (!session) return null
 
   const hasActiveUpload = files.length > 0 && !allDone
-  const showDropZone = files.length === 0
+  const showDropZone = files.length === 0 && !showBanner
 
   return (
     <div className="space-y-6 animate-slide-up">
-      {/* Hidden file inputs */}
+      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
         multiple
-        className="hidden"
-        onChange={(e) => {
-          if (e.target.files) handleFilesSelected(e.target.files)
-          e.target.value = ''
-        }}
-      />
-      <input
-        ref={folderInputRef}
-        type="file"
-        multiple
-        // @ts-expect-error - webkitdirectory is not in the type definition
-        webkitdirectory="true"
         className="hidden"
         onChange={(e) => {
           if (e.target.files) handleFilesSelected(e.target.files)
@@ -162,6 +149,7 @@ export default function UploadPage() {
           totalBytes={bannerStats.totalBytes}
           duration={bannerStats.duration}
           failedFiles={bannerStats.failedFiles}
+          onStartNextBatch={handleStartNextBatch}
         />
       )}
 
@@ -170,7 +158,6 @@ export default function UploadPage() {
         <DropZone
           onFilesDropped={handleFilesSelected}
           onBrowseFiles={handleBrowseFiles}
-          onBrowseFolders={handleBrowseFolders}
           batchNumber={currentBatchNumber}
           hasCompletedBatches={batches.length > 0}
         />
@@ -183,7 +170,6 @@ export default function UploadPage() {
           <FileQueue />
           <UploadControls
             onBrowseFiles={handleBrowseFiles}
-            onBrowseFolders={handleBrowseFolders}
           />
         </>
       )}

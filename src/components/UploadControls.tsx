@@ -2,7 +2,6 @@ import { useUploadStore } from '../stores/uploadStore'
 
 interface UploadControlsProps {
   onBrowseFiles: () => void
-  onBrowseFolders?: () => void
 }
 
 export default function UploadControls({ onBrowseFiles }: UploadControlsProps) {

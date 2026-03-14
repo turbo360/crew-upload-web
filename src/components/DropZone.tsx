@@ -3,12 +3,11 @@ import { useCallback, useState, DragEvent } from 'react'
 interface DropZoneProps {
   onFilesDropped: (files: FileList | File[]) => void
   onBrowseFiles: () => void
-  onBrowseFolders: () => void
   batchNumber?: number
   hasCompletedBatches?: boolean
 }
 
-export default function DropZone({ onFilesDropped, onBrowseFiles, onBrowseFolders, batchNumber = 1, hasCompletedBatches = false }: DropZoneProps) {
+export default function DropZone({ onFilesDropped, onBrowseFiles, batchNumber = 1, hasCompletedBatches = false }: DropZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDragEnter = useCallback((e: DragEvent) => {
@@ -92,15 +91,6 @@ export default function DropZone({ onFilesDropped, onBrowseFiles, onBrowseFolder
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             Select Files
-          </button>
-          <button
-            onClick={onBrowseFolders}
-            className="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Select Folder
           </button>
         </div>
       </div>

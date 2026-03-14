@@ -17,6 +17,10 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - TURBO_API_URL=${TURBO_API_URL:-https://turbo.net.au}
       - TURBO_API_KEY=${TURBO_API_KEY}
+      - SMSGLOBAL_API_KEY=${SMSGLOBAL_API_KEY}
+      - SMSGLOBAL_API_SECRET=${SMSGLOBAL_API_SECRET}
+      - SMS_NOTIFICATION_NUMBER=${SMS_NOTIFICATION_NUMBER:-+61499944333}
+      - SMS_SENDER_NAME=${SMS_SENDER_NAME:-Turbo 360}
     volumes:
       - "/volume1/Crew Uploads:/uploads"
       - /volume1/docker/crew-upload/data:/data

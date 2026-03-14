@@ -17,4 +17,8 @@ export const config = {
   sessionTimeout: 24 * 60 * 60 * 1000, // 24 hours in ms
   fileOwner: process.env.FILE_OWNER || '1030',
   fileGroup: process.env.FILE_GROUP || '100',
+  smsGlobalKey: process.env.SMSGLOBAL_API_KEY || '',
+  smsGlobalSecret: process.env.SMSGLOBAL_API_SECRET || '',
+  smsNotificationNumber: process.env.SMS_NOTIFICATION_NUMBER || '+61499944333',
+  smsSenderName: process.env.SMS_SENDER_NAME || 'Turbo 360',
 };

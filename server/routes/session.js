@@ -7,6 +7,7 @@ import { logger } from '../utils/logger.js';
 import { sessionModel, uploadModel, auditModel } from '../models/database.js';
 import { sanitizeFilename } from '../utils/cleanup.js';
 import { sendBatchCompletionEmail } from '../utils/email.js';
+import { sendSms } from '../utils/sms.js';
 
 // Function to send upload history to turbo.net.au
 async function sendUploadHistoryWebhook(session, uploads) {
@@ -72,33 +73,30 @@ router.post('/create', async (req, res) => {
   try {
     const sessionId = uuidv4();
 
-    // Sanitize names for folder creation
-    const sanitizedProject = sanitizeFilename(projectName.trim());
+    // Sanitize crew name for folder creation
     const sanitizedCrew = sanitizeFilename(crewName.trim());
 
-    // Generate timestamp folder
-    const timestamp = new Date().toISOString()
-      .replace(/T/, '_')
-      .replace(/:/g, '')
-      .substring(0, 15); // YYYY-MM-DD_HHMM
+    // Determine batch number by counting existing Batch folders
+    const crewDir = path.join(config.uploadDir, sanitizedCrew);
+    let batchNumber = 1;
+    try {
+      const entries = await fs.readdir(crewDir, { withFileTypes: true });
+      const batchDirs = entries.filter(e => e.isDirectory() && /^Batch \d+$/.test(e.name));
+      batchNumber = batchDirs.length + 1;
+    } catch {
+      // Directory doesn't exist yet — first batch
+    }
 
-    // Build folder path
-    const folderPath = path.join(
-      config.uploadDir,
-      sanitizedProject,
-      sanitizedCrew,
-      timestamp
-    );
+    // Build folder path: UPLOAD_DIR/CrewName/Batch N
+    const folderPath = path.join(crewDir, `Batch ${batchNumber}`);
 
     // Create the folder structure
     await fs.mkdir(folderPath, { recursive: true });
 
-    // Fix directory ownership for NAS sync - chown from project level down
-    // so all parent dirs (project/crew/timestamp) are owned by turbo, not root
+    // Fix directory ownership for NAS sync - chown from crew level down
     try {
       const { execSync } = await import('child_process');
-      const projectDir = path.join(config.uploadDir, sanitizedProject);
-      execSync(`chown -R ${config.fileOwner}:${config.fileGroup} "${projectDir}"`);
+      execSync(`chown -R ${config.fileOwner}:${config.fileGroup} "${crewDir}"`);
     } catch (chownErr) {
       logger.warn('Failed to set directory ownership', { folderPath, error: chownErr.message });
     }
@@ -116,6 +114,11 @@ router.post('/create', async (req, res) => {
       crewName,
       projectName,
       folderPath
+    });
+
+    // Send SMS notification for session start
+    sendSms(`Crew Upload: ${crewName.trim()} has started uploading to ${projectName.trim()}`).catch(err => {
+      logger.error('SMS send failed:', err.message);
     });
 
     auditModel.log({
@@ -246,6 +249,16 @@ router.post('/:id/batch-complete', async (req, res) => {
       batchNumber, fileCount, completedFiles, failedFiles, totalBytes, startedAt, completedAt, fileNames
     }).catch(err => {
       logger.error('Batch email send failed:', err.message);
+    });
+
+    // Send SMS notification for batch completion
+    const formattedBytes = totalBytes >= 1073741824
+      ? (totalBytes / 1073741824).toFixed(1) + ' GB'
+      : totalBytes >= 1048576
+        ? (totalBytes / 1048576).toFixed(1) + ' MB'
+        : (totalBytes / 1024).toFixed(1) + ' KB';
+    sendSms(`Crew Upload: ${session.crew_name} completed Batch ${batchNumber} — ${fileCount} files (${formattedBytes})`).catch(err => {
+      logger.error('SMS send failed:', err.message);
     });
 
     res.json({ success: true });
