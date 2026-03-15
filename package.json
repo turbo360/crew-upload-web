@@ -1,6 +1,6 @@
 {
   "name": "crew-upload-web",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Crew Upload Server & Web Portal for Turbo 360",
   "type": "module",
   "scripts": {
@@ -20,6 +20,7 @@
     "postmark": "^4.0.5",
     "uuid": "^11.0.3",
     "winston": "^3.17.0",
-    "winston-daily-rotate-file": "^5.0.0"
+    "winston-daily-rotate-file": "^5.0.0",
+    "ws": "^8.19.0"
   }
 }

@@ -9,9 +9,13 @@
   let sessionProject = '';
   let selectedFiles = [];
   let activeUploads = new Map(); // file index -> tus.Upload
+  let failedUploads = new Map(); // file index -> { file, uploadId }
   let completedCount = 0;
   let failedCount = 0;
   let uploading = false;
+  let retrying = false;
+  let commandWs = null;
+  let commandWsReconnectTimer = null;
 
   // DOM refs
   const screenPin = document.getElementById('screen-pin');
@@ -159,6 +163,7 @@
       sessionName = name;
       sessionProject = project;
       uploadSessionInfo.textContent = project + ' — ' + name;
+      connectCommandWebSocket();
       showScreen('upload');
     } catch (err) {
       detailsError.textContent = err.message;
@@ -354,6 +359,7 @@
           })
         }).catch(() => {});
 
+        failedUploads.set(idx, { file: file, uploadId: uploadId });
         markFileFailed(idx, error.message);
         checkAllDone();
       }
@@ -453,14 +459,117 @@
     uploading = false;
   }
 
+  // Retry all failed uploads
+  async function retryFailedUploads() {
+    if (retrying || failedUploads.size === 0) return;
+    retrying = true;
+
+    // Hide completion section, show progress
+    uploadComplete.classList.add('hidden');
+    uploading = true;
+
+    const entries = Array.from(failedUploads.entries());
+    failedUploads.clear();
+
+    for (const [idx, { file }] of entries) {
+      failedCount--;
+
+      // Reset file progress UI
+      const progressEl = document.getElementById('file-progress-' + idx);
+      if (progressEl) {
+        progressEl.innerHTML = '<span class="spinner"></span>';
+      }
+
+      try {
+        // Re-register upload with the server
+        const regRes = await fetch('/api/session/' + sessionId + '/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            filename: file.name,
+            fileSize: file.size,
+            mimeType: file.type || 'application/octet-stream'
+          })
+        });
+
+        if (!regRes.ok) {
+          markFileFailed(idx, 'Registration failed');
+          continue;
+        }
+
+        const regData = await regRes.json();
+        startTusUpload(idx, file, regData.upload.id);
+      } catch (err) {
+        markFileFailed(idx, err.message);
+      }
+    }
+
+    retrying = false;
+  }
+
+  // WebSocket command channel
+  function connectCommandWebSocket() {
+    if (!sessionId || !token) return;
+
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = protocol + '//' + location.host + '/ws/client';
+
+    try {
+      commandWs = new WebSocket(wsUrl);
+
+      commandWs.onopen = () => {
+        commandWs.send(JSON.stringify({
+          type: 'auth',
+          token: token,
+          sessionId: sessionId
+        }));
+      };
+
+      commandWs.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'command' && msg.action === 'retry-failed') {
+            retryFailedUploads();
+          }
+        } catch (e) {
+          // ignore parse errors
+        }
+      };
+
+      commandWs.onclose = () => {
+        commandWs = null;
+        // Auto-reconnect after 5s if session still active
+        if (sessionId) {
+          commandWsReconnectTimer = setTimeout(connectCommandWebSocket, 5000);
+        }
+      };
+
+      commandWs.onerror = () => {
+        // onclose will fire after this
+      };
+    } catch (e) {
+      commandWsReconnectTimer = setTimeout(connectCommandWebSocket, 5000);
+    }
+  }
+
   // Upload more button
   uploadMoreBtn.addEventListener('click', () => {
     // Create a new session for more uploads
     selectedFiles = [];
     activeUploads.clear();
+    failedUploads.clear();
     completedCount = 0;
     failedCount = 0;
     uploading = false;
+    retrying = false;
+
+    // Close command WebSocket
+    if (commandWsReconnectTimer) { clearTimeout(commandWsReconnectTimer); commandWsReconnectTimer = null; }
+    if (commandWs) { commandWs.close(); commandWs = null; }
+    sessionId = null;
 
     fileList.innerHTML = '';
     overallProgress.classList.add('hidden');
@@ -499,6 +608,9 @@
       e.preventDefault();
       e.returnValue = '';
     }
+    // Clean up command WebSocket
+    if (commandWsReconnectTimer) clearTimeout(commandWsReconnectTimer);
+    if (commandWs) commandWs.close();
   });
 
   // ── Utilities ──

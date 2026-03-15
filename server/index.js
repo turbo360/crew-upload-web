@@ -1,3 +1,4 @@
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -15,6 +16,7 @@ import notificationRoutes from './routes/notification.js';
 import { authMiddleware } from './middleware/auth.js';
 import { tusUploadHandler } from './middleware/tusHandler.js';
 import { cleanupIncompleteUploads } from './utils/cleanup.js';
+import { initWebSocket, sendCommandToSession } from './utils/wsManager.js';
 import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -118,6 +120,31 @@ async function getDiskSpace() {
   }
 }
 
+// Retry endpoint - uses API key auth (called by turbo.net.au backend)
+app.post('/api/admin/retry-failed', (req, res) => {
+  const apiKey = req.headers['x-turbo-api-key'];
+  if (!apiKey || apiKey !== config.turboApiKey) {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+
+  const { sessionId } = req.body;
+  if (!sessionId) {
+    return res.status(400).json({ error: 'sessionId is required' });
+  }
+
+  const clientsNotified = sendCommandToSession(sessionId, {
+    type: 'command',
+    action: 'retry-failed'
+  });
+
+  if (clientsNotified === 0) {
+    return res.status(404).json({ success: false, error: 'No connected clients for this session' });
+  }
+
+  logger.info(`Retry command sent to ${clientsNotified} client(s) for session ${sessionId}`);
+  res.json({ success: true, clientsNotified });
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/session', authMiddleware, sessionRoutes);
@@ -178,7 +205,10 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = http.createServer(app);
+initWebSocket(server);
+
+server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   logger.info(`Environment: ${config.nodeEnv}`);
   logger.info(`Upload directory: ${config.uploadDir}`);
