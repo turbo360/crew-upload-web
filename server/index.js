@@ -206,6 +206,13 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
+
+// Disable timeouts for long-running uploads (files can take 2+ hours)
+server.timeout = 0;
+server.headersTimeout = 0;
+server.requestTimeout = 0;
+server.keepAliveTimeout = 0;
+
 initWebSocket(server);
 
 server.listen(PORT, () => {
